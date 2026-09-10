@@ -1,0 +1,84 @@
+# Python caches and build outputs
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+build/
+dist/
+*.egg-info/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Environment secrets; examples must contain placeholders only
+.env
+.env.*
+*.env
+!.env.example
+
+# IDE: retain the option to share reviewed .vscode settings
+.idea/
+*.code-workspace
+.vscode/*.local.json
+
+# OS, temporary files and Excel lock files
+.DS_Store
+Thumbs.db
+*.tmp
+*.temp
+~$*
+
+# Logs
+*.log
+logs/
+
+# SQLite databases and sidecars (including uppercase extensions)
+*.[dD][bB]
+*.[sS][qQ][lL][iI][tT][eE]
+*.[sS][qQ][lL][iI][tT][eE]3
+*.[dD][bB]-wal
+*.[dD][bB]-shm
+*.[dD][bB]-journal
+*.[sS][qQ][lL][iI][tT][eE]-wal
+*.[sS][qQ][lL][iI][tT][eE]-shm
+*.[sS][qQ][lL][iI][tT][eE]-journal
+*.[sS][qQ][lL][iI][tT][eE]3-wal
+*.[sS][qQ][lL][iI][tT][eE]3-shm
+*.[sS][qQ][lL][iI][tT][eE]3-journal
+
+# Research spreadsheets and tabular data; never copy real data into fixtures
+*.[xX][lL][sS][xX]
+*.[xX][lL][sS]
+*.[xX][lL][sS][mM]
+*.[cC][sS][vV]
+*.[tT][sS][vV]
+
+# Local research data, Import drafts, backups and generated exports
+data/
+local_data/
+raw_data/
+workspace/
+backups/
+exports/
+
+# User-specific runtime settings; keep safe source templates trackable
+/config.local.*
+/settings.local.*
+/user_settings.*
+/local_config/
+
+# Do not ignore all PNG files: reviewed UI assets belong in Git.
+# Save generated graphs under exports/ so they are excluded.
+# No blanket fixture exception: after reviewing a synthetic, non-sensitive
+# file, add an exact allowlist entry here, e.g.:
+# !/tests/fixtures/synthetic_example.xlsx
+# !/samples/synthetic_example.csv
+# !/tests/fixtures/synthetic_example.sqlite3
+# Never allowlist real research data or an entire fixture directory.
