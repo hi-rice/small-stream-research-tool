@@ -7,9 +7,10 @@
 
 ## 현재 상태
 
-Phase 0 개발 기반: Python 패키지, CLI 시작 확인, 앱 정보·경로 계산, 콘솔 logging,
-pytest·ruff 구성만 제공한다. 실행하면 시작 확인 메시지를 기록하고 종료한다.
-로그인·DB·migration·Excel 처리·QC·업무 화면·분석은 아직 구현하지 않았다.
+Phase 0 개발 기반과 Phase 1 SQLite 기반을 제공한다. DB 연결, 19개 V1 테이블,
+39개 FK, CHECK·UNIQUE·부분 유일 인덱스와 순차 SQL migration을 구현했다.
+CLI는 시작 확인 메시지를 기록하고 종료하며 DB 초기화는 명시적 API 호출로만 수행한다.
+로그인·Excel 처리·QC 실행·업무 화면·분석은 아직 구현하지 않았다.
 
 ## 환경과 의존성
 
@@ -19,7 +20,7 @@ pytest·ruff 구성만 제공한다. 실행하면 시작 확인 메시지를 기
 - 현재 실행 의존성은 Python 표준 라이브러리뿐이다.
 - 개발 도구는 pytest(테스트), ruff(lint·format)다. mypy는 도입하지 않았다.
 - 향후 PySide6, pandas, openpyxl, matplotlib는 실제 사용하는 Phase에서 추가한다.
-  SQLite는 표준 `sqlite3`를 사용할 예정이며 ORM은 도입하지 않는다.
+  SQLite는 표준 `sqlite3`를 사용하며 ORM은 도입하지 않는다.
 
 ## 개발환경 설치 (PowerShell)
 
@@ -63,6 +64,32 @@ logging은 앱 이름 공간의 모듈 logger를 사용하며 기본 INFO 레벨
 비밀번호·인증정보·IP·RTSP·연락처·원본 셀 값을 기록하지 않아야 한다.
 공통 예외 계층은 실제 Service 예외가 필요한 단계에서 도입한다.
 
+## SQLite 기반 API
+
+`database.initialize_database(db_path)`는 지정한 DB를 초기화하고 연결을 닫은 뒤
+적용 버전 번호를 반환한다. 경로를 생략해 명시적으로 호출하면 Phase 0 설정의
+`database_dir/research.sqlite3`를 사용한다. 앱 시작이나 패키지 import만으로 생성하지 않는다.
+테스트는 `tmp_path` 아래 synthetic DB만 사용한다.
+
+`connect_database(db_path)`의 반환 연결은 호출자가 닫는다. 연결마다 foreign_keys를
+활성화·확인하며, 업무 쓰기는 `transaction(connection)` 안에서 수행한다.
+이 helper는 명시적 BEGIN IMMEDIATE/COMMIT/ROLLBACK을 사용하고 중첩 transaction을 거부한다.
+
+`get_schema_version(connection)`은 빈 DB에서 0, 현재 초기 스키마에서 1을 반환한다.
+`apply_migrations(connection)`은 전용 유휴 연결에서 `001_initial.sql`부터 번호순으로 적용한다.
+schema_version에는 `001` 형식의 버전, 파일명, 앱 버전, UTC 적용 시각을 기록한다.
+각 migration의 DDL·DML과 버전 기록을 함께 확정하고 실패하면 해당 migration만 rollback한다.
+이미 적용된 migration은 재실행하지 않으며 최신 상태에서는 스키마·기록을 변경하지 않는다.
+번호 중복·누락, 미등록 기존 DB, 비호환 버전/파일명은 자동 보정하지 않고 거부한다.
+적용한 SQL 파일은 수정하지 않고 다음 번호 파일을 추가한다. SQL 안의 transaction·PRAGMA·
+ATTACH/DETACH는 허용하지 않으며, SQL 파일은 패키지 데이터로 포함한다.
+
+제약은 DATABASE_DESIGN.md를 따른다. 현재 사용값 부분 UNIQUE는 활성 행만 대상으로 한다.
+관리코드 구성요소는 DB에서 길이를 검사하며 숫자 구성·연결 일치는 후속 Service 책임이다.
+login_id는 정규화된 소문자 저장 형태만 허용하며 DB가 자동 변환하지 않는다.
+role·매핑 상태/방법·quality_status 등 닫힌 목록이 확정되지 않은 필드는 임의 enum으로 제한하지 않는다.
+날짜/JSON 형식, provenance 교차 일치, 현재값 선정·QC 실행도 후속 Phase 책임이다.
+
 ## 테스트와 코드 검사
 
 설치 후 저장소 루트에서 실행한다.
@@ -76,6 +103,8 @@ logging은 앱 이름 공간의 모듈 logger를 사용하며 기본 INFO 레벨
 
 단위 테스트는 import·메타데이터·경로·logging을 검사한다.
 통합 smoke test는 설치된 module/console 진입점을 임시 작업 폴더에서 실행한다.
+DB 통합 테스트는 19개 테이블·39개 FK, 제약 위반 거부, 재초기화·순차 적용과
+DDL/DML/버전 기록 실패 rollback을 검증한다.
 실제 연구자료, 운영 DB, GUI 환경에 의존하지 않는다.
 
 ## 구조
@@ -88,13 +117,18 @@ src/small_stream_research_tool/
   __init__.py / __main__.py
   app/main.py                    시작점
   config/settings.py             앱 정보·경로 계산
+  database/
+    __init__.py                  명시적 초기화 API
+    connection.py                FK 활성화 연결·transaction
+    migrations.py                버전 조회·순차 migration runner
+    migrations/001_initial.sql   V1 초기 스키마
   utils/logging.py                콘솔 로깅
 tests/
   unit/                          설정·로깅
-  integration/                   설치된 시작점 검증
+  integration/                   시작점·SQLite 제약·migration 검증
 ```
 
-`ui`, `services`, `repositories`, `database`, `models` 등은 해당 Phase에서 필요할 때
+`ui`, `services`, `repositories`, `models` 등은 해당 Phase에서 필요할 때
 생성한다. 이후에도 UI → Service → Repository → Database 방향을 유지한다.
 설계문서의 ‘구현 전’ 표현은 설계 기준 시점이며 현재 구현 상태는 이 README에서 설명한다.
 

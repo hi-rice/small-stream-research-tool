@@ -19,6 +19,9 @@ small-stream-research-tool = "small_stream_research_tool.app.main:main"
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+"small_stream_research_tool.database" = ["migrations/*.sql"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "--import-mode=importlib -ra"
