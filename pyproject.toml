@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=77.0.3,<83"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "small-stream-research-tool"
+version = "0.1.0"
+description = "Windows 로컬·오프라인 소하천 연구지원 프로그램의 개발 기반"
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest>=8.3,<10", "ruff>=0.11,<1"]
+
+[project.scripts]
+small-stream-research-tool = "small_stream_research_tool.app.main:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--import-mode=importlib -ra"
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+src = ["src"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
