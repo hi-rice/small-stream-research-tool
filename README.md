@@ -12,16 +12,17 @@ Phase 0 개발 기반과 Phase 1 SQLite 기반을 제공한다. DB 연결, 19개
 CLI는 시작 확인 메시지를 기록하고 종료하며 DB 초기화는 명시적 API 호출로만 수행한다.
 Phase 1A는 사용자 생성·인증·비밀번호 변경·활성 상태 처리의 백엔드를 제공한다.
 Phase 2는 분류·사전 버전·단위·변환 규칙·표준 항목·별칭 관리와 정확한 별칭 lookup을 제공한다.
-로그인 GUI·Excel 처리·QC 실행·업무 화면·분석은 아직 구현하지 않았다.
+Phase 3는 .xlsx 구조·명시적 헤더 범위·원본 행/셀을 읽는 Excel Reader를 제공한다.
+로그인 GUI·Excel 자동매핑/DB Import·QC 실행·업무 화면·분석은 아직 구현하지 않았다.
 
 ## 환경과 의존성
 
 - Python **3.12.x**, Windows를 기본 대상으로 한다.
 - 표준 `venv` + `pip`, `pyproject.toml` + setuptools의 `src` 패키지 구조를 사용한다.
   별도 패키지 관리자 없이 Python 기본 도구로 설치·검증하기 위한 선택이다.
-- 실행 의존성은 Python 표준 라이브러리와 비밀번호 처리를 위한 argon2-cffi다.
+- 실행 의존성은 Python 표준 라이브러리, 비밀번호용 argon2-cffi와 Excel 읽기용 openpyxl이다.
 - 개발 도구는 pytest(테스트), ruff(lint·format)다. mypy는 도입하지 않았다.
-- 향후 PySide6, pandas, openpyxl, matplotlib는 실제 사용하는 Phase에서 추가한다.
+- 향후 PySide6, pandas, matplotlib는 실제 사용하는 Phase에서 추가한다.
   SQLite는 표준 `sqlite3`를 사용하며 ORM은 도입하지 않는다.
 
 ## 개발환경 설치 (PowerShell)
@@ -152,7 +153,76 @@ lookup은 활성 별칭·활성/미폐기 항목·활성 분류·활성 단위(�
 미사용 활성 항목은 검증 후 해당 필드를 수정할 수 있다. 같은 값의 재요청은 변경하지 않는다.
 `deprecate_item`은 폐기 버전 참조와 비활성 상태를 함께 기록하며 기존 폐기 버전을 덮어쓰지 않는다.
 분류/단위 비활성화는 자식이나 과거 자료를 삭제·자동 변경하지 않는다.
-사전 변경 이력의 상세 workflow와 Excel 읽기·자동매핑 UI는 아직 구현하지 않았다.
+사전 변경 이력의 상세 workflow와 Excel 자동매핑 UI는 아직 구현하지 않았다.
+
+## Excel Reader 기반
+
+`services/excel_reader.py`의 `ExcelReader(path)`는 파일 읽기 전용 Service이며 DB에 접근하지 않는다.
+`.xlsx`만 지원하고 확장자 대소문자는 구분하지 않는다. `.xls`·`.xlsm` 등은 거부한다.
+openpyxl 허용 범위는 `>=3.1.5,<3.2`다. 원본을 저장하거나 값·헤더·수식을 수정하지 않는다.
+
+```python
+from small_stream_research_tool.services.excel_reader import ExcelReader
+
+with ExcelReader(path) as reader:  # path는 호출자가 선택한 .xlsx 경로
+    info = reader.workbook_info
+    sheet_name = info.sheet_names[0]  # 실제 선택은 호출자 책임
+    sheet = reader.sheet_info(sheet_name)
+    columns = reader.read_columns(sheet_name, header_start_row=1, header_end_row=2)
+    preview = reader.read_preview(
+        sheet_name, header_start_row=1, header_end_row=2, start_row=4, row_count=10
+    )
+    for row in reader.iter_rows(
+        sheet_name,
+        header_start_row=1,
+        header_end_row=2,
+        data_start_row=4,
+        include_blank=False,
+    ):
+        pass  # row.cells를 후속 처리 계층으로 전달한다.
+```
+
+헤더 시작/종료 행은 호출자가 지정하며 자동 탐지·헤더 정규화·사전 매핑을 수행하지 않는다.
+`data_start_row` 기본값은 헤더 종료+1이고 명시하면 설명 행 등을 건너뛸 수 있다.
+헤더는 시트 내부의 양의 정수 범위, 데이터 시작은 헤더 이후부터 마지막 행+1까지 허용한다.
+마지막 행+1은 데이터가 없는 경우이며 빈 iterator를 반환한다. bool·실수는 행 번호로 받지 않는다.
+
+Workbook은 경로·모든 시트명·개수, Sheet는 이름·1-based 순서·크기·병합 범위·숨김 상태를 제공한다.
+hidden/veryHidden을 자동 제외하지 않는다. chart sheet도 목록에 보존하되 크기는 None이고
+셀 읽기 요청은 application 오류로 거부한다. 크기는 openpyxl의 사용 범위이므로 서식만 있는
+셀까지 포함될 수 있으며 실제 연구 데이터 범위로 자동 해석하지 않는다.
+
+컬럼은 시트 전체 열 범위와 원본 열 번호/문자를 유지한다. 각 `header_parts`는 실제 위치의
+`cell`과 병합 범위·`merged_anchor`를 분리해 보존한다. 실제 병합 범위만 anchor를 참조하며
+일반 빈 셀을 forward-fill하지 않는다. `display_header`는 None을 제외한 표시 문자열을
+` | `로 연결한다. 동일 세로 병합 anchor의 반복 표시는 생략하지만 모든 원본 part는 유지한다.
+빈 헤더는 빈 문자열, 중복 헤더는 동일 문자열로 유지하며 이름을 생성/변경하지 않는다.
+숫자·날짜 헤더도 원본 native 값은 보존하고 표시 문자열만 생성한다.
+
+`ExcelCell`은 1-based 행/열·열 문자·좌표·native 값·openpyxl value type·수식 여부·number format을
+보존한다. 문자열 `001`/`3.50`은 그대로, 숫자 1과 서식 `000`은 별도 정보로 전달한다.
+날짜·시간에 timezone을 임의 추가하지 않는다. 일반 수식은 `=...`와 `is_formula=True`,
+배열/데이터 테이블 수식은 library 객체 대신 `ExcelFormula`의 표현·속성으로 전달한다.
+Excel 오류 타입 `e`와 같은 글자의 일반 문자열 타입 `s`도 구분한다. 수식을 계산하지 않는다.
+
+명시적 로딩 옵션은 `read_only=False`, `data_only=False`, `keep_vba=False`, `keep_links=False`,
+`rich_text=False`다. 병합 메타데이터와 수식 보존을 우선하며 외부 링크 캐시·매크로·rich-text
+서식은 읽기 대상이 아니다. [openpyxl 로딩 옵션 문서](https://openpyxl.readthedocs.io/en/stable/api/openpyxl.reader.excel.html)를 참고한다.
+workbook은 일반 모드로 메모리에 로딩하므로 대용량 상수 메모리 streaming을 보장하지 않는다.
+행 모델은 iterator로 한 행씩 만들며 전체 시트를 별도 list로 복제하지 않는다.
+일반 모드의 빈 좌표 조회도 내부 셀 객체를 만들 수 있으므로 서식으로 크게 확장된 시트는
+추후 실제 규모 확인 후 최적화한다. 별도 디스크 파일이나 DB에는 복제하지 않는다.
+
+`ExcelRow.is_blank`는 모든 셀 값이 None일 때만 True다. 공백 문자열·0·False·수식·일부 열만
+있는 마지막 행은 보존한다. `include_blank`로 완전히 빈 행의 포함/제외를 선택한다.
+Preview는 빈 행을 포함한 실제 행 범위 중 최대 `row_count`개와 컬럼 메타데이터를 반환하며
+0개 요청도 허용한다. Import 적합성 판정·QC·UNMAPPED 결정 기능은 없다.
+
+Reader는 한 번만 로딩하며 읽기 전용 파일 handle은 로딩 성공/실패 직후 닫는다.
+context 종료 또는 멱등 `close()`로 workbook을 해제한다. 행 iterator는 Reader가 열린 동안
+소비해야 한다. 오류는 `models/excel_errors.py`의 application 예외로 전달하며 메시지에
+원본 경로·셀 값·library 오류 원문을 넣지 않는다. 모델에 보존된 원본값 자체는 민감정보를
+포함할 수 있으므로 후속 UI/로그/Export에서는 별도 표시·차단 정책이 필요하다.
 
 ## 테스트와 코드 검사
 
@@ -172,6 +242,8 @@ DDL/DML/버전 기록 실패 rollback을 검증한다.
 인증 테스트는 실제 Argon2id와 임시 SQLite로 정규화·중복·인증·비밀번호 변경·
 비활성 계정·실패 rollback·비밀 비노출을 검증한다.
 사전 테스트는 synthetic 분류/항목/단위/별칭으로 중복·필터·scope·변환·의미 보호·rollback을 검증한다.
+Excel 테스트는 tmp_path에서 생성한 synthetic xlsx로 병합/빈/중복 헤더, native 값·수식·오류,
+위치·빈/부분 행·Preview·자원 해제·원본 hash 동일성과 DB 접근 부재를 검증한다.
 실제 연구자료, 운영 DB, GUI 환경에 의존하지 않는다.
 
 ## 구조
@@ -199,6 +271,8 @@ src/small_stream_research_tool/
   models/dictionary_errors.py    사전 application 오류
   repositories/dictionary_repository.py 사전 SQL 저장소
   services/dictionary_service.py 사전 관리·별칭 lookup·등록 변환
+  models/excel.py / excel_errors.py Excel 원본 구조 모델·application 오류
+  services/excel_reader.py       .xlsx 구조·헤더·행 읽기 전용 Service
 tests/
   unit/                          설정·로깅
   integration/                   시작점·SQLite 제약·migration 검증

@@ -8,7 +8,7 @@ version = "0.1.0"
 description = "Windows 로컬·오프라인 소하천 연구지원 프로그램의 개발 기반"
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
-dependencies = ["argon2-cffi>=25.1,<26"]
+dependencies = ["argon2-cffi>=25.1,<26", "openpyxl>=3.1.5,<3.2"]
 
 [project.optional-dependencies]
 dev = ["pytest>=8.3,<10", "ruff>=0.11,<1"]
