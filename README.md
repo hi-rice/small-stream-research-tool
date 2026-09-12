@@ -13,6 +13,7 @@ CLI는 시작 확인 메시지를 기록하고 종료하며 DB 초기화는 명�
 Phase 1A는 사용자 생성·인증·비밀번호 변경·활성 상태 처리의 백엔드를 제공한다.
 Phase 2는 분류·사전 버전·단위·변환 규칙·표준 항목·별칭 관리와 정확한 별칭 lookup을 제공한다.
 Phase 3는 .xlsx 구조·명시적 헤더 범위·원본 행/셀을 읽는 Excel Reader를 제공한다.
+Phase 4는 소하천 관리코드의 문자열 후보 생성·검증·원본/구성요소 비교를 제공한다.
 로그인 GUI·Excel 자동매핑/DB Import·QC 실행·업무 화면·분석은 아직 구현하지 않았다.
 
 ## 환경과 의존성
@@ -224,6 +225,39 @@ context 종료 또는 멱등 `close()`로 workbook을 해제한다. 행 iterator
 원본 경로·셀 값·library 오류 원문을 넣지 않는다. 모델에 보존된 원본값 자체는 민감정보를
 포함할 수 있으므로 후속 UI/로그/Export에서는 별도 표시·차단 정책이 필요하다.
 
+## 소하천 관리코드 검증 기반
+
+`services/stream_code_service.py`는 파일·DB·네트워크 I/O 없는 순수 함수다.
+`normalize_component(name, value, number_format=...)`, `validate_source_code(value, ...)`,
+`validate_stream_code(source_code=..., province_code=..., city_county_code=...,
+town_code=..., stream_serial_no=..., number_formats=...)`를 제공한다.
+`number_formats`는 해당 필드명 → 서식의 선택적 mapping이다.
+구성 순서는 2+3+3+3이며 모든 유효 후보와 생성 코드는 ASCII 숫자 문자열이다.
+
+문자열은 앞뒤 whitespace만 제거한다. 내부 공백·Unicode 숫자·부호·소수점·과학적 표기를
+허용하지 않으며 짧은 문자열은 서식이 있어도 padding하지 않는다. None·빈 문자열은 MISSING이다.
+정수는 음수가 아니어야 한다. float는 유한한 정수값만 허용하며 음의 0·비정수·NaN/Inf는 거부한다.
+숫자의 자릿수가 기대 길이와 같고 서식이 None/General이면 패딩 없이 문자열 후보로 검증한다.
+짧은 숫자는 AMBIGUOUS이며, 서식이 기대 길이만큼의 `0`과 정확히 같을 때만 padding 후보를 만든다.
+예를 들어 synthetic 값 9와 `000`은 `009` 후보가 된다. 복잡한 서식·서식 폭 불일치는
+해석하지 않고 AMBIGUOUS로 유지한다. 길이 초과 숫자는 INVALID_LENGTH로 거부한다.
+일반 관리코드 문자열을 숫자로 바꾸지 않으며 숫자 입력의 문자열화·float 처리·padding·trim은
+`normalization_steps`에 기록한다. raw 값과 number_format도 결과에 별도로 보존한다.
+
+검증 상태는 VALID/MISSING/INVALID_FORMAT/INVALID_LENGTH/AMBIGUOUS다.
+원본 전체 코드와 구성요소를 독립 검증하고 네 구성요소가 모두 VALID일 때만 생성한다.
+둘 다 유효할 때만 MATCH/MISMATCH로 비교하고 나머지는 NOT_COMPARABLE이다.
+원본이 없고 생성 가능하면 `SOURCE_MISSING_GENERATED_AVAILABLE` issue로 구분한다.
+불변 결과 모델에 필드별 상태·기계용 code·한국어 message를 제공하며 원본을 교체하지 않는다.
+VALID는 형식 검증 결과이며 실제 등록된 하천인지 확인하거나 DB 저장을 승인하는 의미가 아니다.
+
+`normalize_excel_code_cell(name, cell)`은 호출자가 선택한 기존 ExcelCell의 값과 서식을 받는다.
+전체 코드에는 name=`stream_code`를 사용한다. 수식/Excel 오류 셀은 코드 후보로 사용하지 않는다.
+ExcelCell·Reader를 변경하거나 파일·컬럼을 자동 탐색하지 않는다.
+잘못된 필드명·기대 길이·서식 인자 등의 API 오용은 `StreamCodeArgumentError`,
+일반 원본값 오류는 검증 결과로 반환한다. 새 의존성·DB 쓰기·중복 조회·QC 저장은 없다.
+로드맵의 중복 검출 연계는 이번 요청 범위에서 구현하지 않았다.
+
 ## 테스트와 코드 검사
 
 설치 후 저장소 루트에서 실행한다.
@@ -244,6 +278,8 @@ DDL/DML/버전 기록 실패 rollback을 검증한다.
 사전 테스트는 synthetic 분류/항목/단위/별칭으로 중복·필터·scope·변환·의미 보호·rollback을 검증한다.
 Excel 테스트는 tmp_path에서 생성한 synthetic xlsx로 병합/빈/중복 헤더, native 값·수식·오류,
 위치·빈/부분 행·Preview·자원 해제·원본 hash 동일성과 DB 접근 부재를 검증한다.
+관리코드 테스트는 synthetic 문자열·숫자·서식으로 형식/폭·원본/후보 독립성·비교·불변성·
+ExcelCell 연계·I/O 부재와 경계값 invariant를 검증한다.
 실제 연구자료, 운영 DB, GUI 환경에 의존하지 않는다.
 
 ## 구조
@@ -273,6 +309,8 @@ src/small_stream_research_tool/
   services/dictionary_service.py 사전 관리·별칭 lookup·등록 변환
   models/excel.py / excel_errors.py Excel 원본 구조 모델·application 오류
   services/excel_reader.py       .xlsx 구조·헤더·행 읽기 전용 Service
+  models/stream_code.py / stream_code_errors.py 관리코드 검증 결과·API 오류
+  services/stream_code_service.py 관리코드 후보 정규화·생성·독립 검증·비교
 tests/
   unit/                          설정·로깅
   integration/                   시작점·SQLite 제약·migration 검증
