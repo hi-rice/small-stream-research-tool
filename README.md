@@ -11,6 +11,7 @@ Phase 0 개발 기반과 Phase 1 SQLite 기반을 제공한다. DB 연결, 19개
 39개 FK, CHECK·UNIQUE·부분 유일 인덱스와 순차 SQL migration을 구현했다.
 CLI는 시작 확인 메시지를 기록하고 종료하며 DB 초기화는 명시적 API 호출로만 수행한다.
 Phase 1A는 사용자 생성·인증·비밀번호 변경·활성 상태 처리의 백엔드를 제공한다.
+Phase 2는 분류·사전 버전·단위·변환 규칙·표준 항목·별칭 관리와 정확한 별칭 lookup을 제공한다.
 로그인 GUI·Excel 처리·QC 실행·업무 화면·분석은 아직 구현하지 않았다.
 
 ## 환경과 의존성
@@ -118,6 +119,41 @@ Service는 hash 없는 `User`를 반환한다. 내부 인증 레코드를 일반
 V1에서는 자동 비밀번호 복구를 제공하지 않는다. 이메일/전화번호·DB 직접 수정 복구,
 임시 비밀번호 발급은 없으며 로그인·최초 등록 GUI도 아직 없다.
 
+## 데이터 사전 기반
+
+`DictionaryRepository(connection)` → `DictionaryService(repository)`로 구성한다.
+분류·단위·표준 항목·별칭을 등록/조회/비활성화하고 사전 버전의 현재 상태를 전환한다.
+물리 삭제 API와 연구 항목 seed는 없다. 날짜는 기존 UTC utility를 사용한다.
+현재 버전 전환과 폐기 처리는 Service transaction으로 원자적으로 수행한다.
+
+`create_item`의 data_type은 REAL/INTEGER/TEXT/DATE/DATETIME이며 사전의 기존 필드를 사용한다.
+internal_name·category_key·단위 기호는 앞뒤 공백만 제거하고 대소문자를 보존한다.
+단위는 unit_name/unit_symbol/dimension 구조이며 별도 key·설명·source 컬럼을 추가하지 않는다.
+표준명 조회는 같은 표시명을 가진 여러 항목을 반환할 수 있다.
+목록의 active/analyzable 필터는 해당 항목 상태를 기준으로 하며 연구 적합성을 자동 판정하지 않는다.
+
+`normalize_alias`의 구현 정책은 NFC → 연속 whitespace를 한 칸으로 축약 → ASCII 영문 소문자화다.
+단어 사이 공백·구두점·단위 표기·위첨자를 제거하지 않는다. 다른 표현은 별칭으로 명시 등록한다.
+`find_dictionary_by_header(raw_header, source_scope=None)`는 정확한 별칭만 조회한다.
+scope는 앞뒤 공백만 제거하고 대소문자를 구분한다. 생략하면 스키마의 GLOBAL을 사용한다.
+명시 scope에 등록이 없을 때만 GLOBAL로 fallback하며 미매칭은 None이다.
+등록된 scope 별칭이 비활성 또는 대상 항목이 사용 불가이면 다른 GLOBAL 의미로 대체하지 않는다.
+lookup은 활성 별칭·활성/미폐기 항목·활성 분류·활성 단위(지정된 경우)를 요구한다.
+빈/잘못된 header는 입력 오류다. 비활성 별칭도 기존 UNIQUE 식별자를 유지한다.
+
+`register_conversion(..., approved=True)`는 사용자가 승인한 LINEAR factor/offset만 등록한다.
+승인은 이 Service 호출의 전제이며 별도 승인자·승인 상태 컬럼을 만들지 않는다.
+`convert_value`는 유한한 숫자와 활성 단위·등록된 활성 규칙으로 `value * factor + offset`만 계산한다.
+자동 역변환·동일 단위 예외·수식 엔진·Excel 값 변환은 없다. 단위 의미를 추정하지 않는다.
+
+`update_item_definition`은 값·Import 매핑·캐시·QC 규칙/issue에서 사용된 항목의 표준명,
+내부명, category, data_type, unit, description, storage_type 변경을 거부한다.
+이는 의미 보호를 위한 구현 정책이며 변경이 필요하면 새 항목을 등록한다.
+미사용 활성 항목은 검증 후 해당 필드를 수정할 수 있다. 같은 값의 재요청은 변경하지 않는다.
+`deprecate_item`은 폐기 버전 참조와 비활성 상태를 함께 기록하며 기존 폐기 버전을 덮어쓰지 않는다.
+분류/단위 비활성화는 자식이나 과거 자료를 삭제·자동 변경하지 않는다.
+사전 변경 이력의 상세 workflow와 Excel 읽기·자동매핑 UI는 아직 구현하지 않았다.
+
 ## 테스트와 코드 검사
 
 설치 후 저장소 루트에서 실행한다.
@@ -135,6 +171,7 @@ DB 통합 테스트는 19개 테이블·39개 FK, 제약 위반 거부, 재초�
 DDL/DML/버전 기록 실패 rollback을 검증한다.
 인증 테스트는 실제 Argon2id와 임시 SQLite로 정규화·중복·인증·비밀번호 변경·
 비활성 계정·실패 rollback·비밀 비노출을 검증한다.
+사전 테스트는 synthetic 분류/항목/단위/별칭으로 중복·필터·scope·변환·의미 보호·rollback을 검증한다.
 실제 연구자료, 운영 DB, GUI 환경에 의존하지 않는다.
 
 ## 구조
@@ -158,6 +195,10 @@ src/small_stream_research_tool/
   repositories/user_repository.py 사용자 저장소
   security/passwords.py          Argon2id 비밀번호 처리
   services/auth_service.py       로컬 인증 백엔드
+  models/dictionary.py           사전 6개 모델
+  models/dictionary_errors.py    사전 application 오류
+  repositories/dictionary_repository.py 사전 SQL 저장소
+  services/dictionary_service.py 사전 관리·별칭 lookup·등록 변환
 tests/
   unit/                          설정·로깅
   integration/                   시작점·SQLite 제약·migration 검증
