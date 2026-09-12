@@ -139,6 +139,10 @@ def validate_stream_code(
         normalize_component(name, value, number_format=number_formats.get(name))
         for name, value in zip(COMPONENT_WIDTHS, raw_components, strict=True)
     )
+    return _combine_results(source, components)
+
+
+def _combine_results(source, components) -> StreamCodeValidationResult:
     generated = (
         "".join(part.normalized_value for part in components)
         if all(part.valid for part in components)
@@ -194,3 +198,23 @@ def normalize_excel_code_cell(name: str, cell: ExcelCell) -> StreamCodeComponent
             normalization_steps=(),
         )
     return result
+
+
+def validate_stream_code_cells(cells: Mapping[str, ExcelCell]) -> StreamCodeValidationResult:
+    """선택된 semantic별 ExcelCell을 기존 정규화/비교 로직에 연결한다."""
+    if not isinstance(cells, Mapping) or any(
+        key not in (*COMPONENT_WIDTHS, "stream_code") for key in cells
+    ):
+        raise StreamCodeArgumentError("관리코드 필드별 ExcelCell mapping이 필요합니다.")
+    source = (
+        normalize_excel_code_cell("stream_code", cells["stream_code"])
+        if "stream_code" in cells
+        else validate_source_code(None)
+    )
+    components = tuple(
+        normalize_excel_code_cell(name, cells[name])
+        if name in cells
+        else normalize_component(name, None)
+        for name in COMPONENT_WIDTHS
+    )
+    return _combine_results(source, components)

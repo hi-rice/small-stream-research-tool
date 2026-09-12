@@ -15,7 +15,8 @@ Phase 2는 분류·사전 버전·단위·변환 규칙·표준 항목·별칭 �
 Phase 3는 .xlsx 구조·명시적 헤더 범위·원본 행/셀을 읽는 Excel Reader를 제공한다.
 Phase 4는 소하천 관리코드의 문자열 후보 생성·검증·원본/구성요소 비교를 제공한다.
 Phase 5A는 정확한 별칭 기반 컬럼 매핑 draft와 사용자별 로컬 Workspace JSON을 제공한다.
-로그인 GUI·행별 Import Preview·DB Import·QC 실행·업무 화면·분석은 아직 구현하지 않았다.
+Phase 5B는 행별 관리코드 검증·기존 하천 조회·표시 정책을 적용한 Import Preview를 제공한다.
+로그인 GUI·DB Import·QC 실행·업무 화면·분석은 아직 구현하지 않았다.
 
 ## 환경과 의존성
 
@@ -287,7 +288,7 @@ repository 내부 경로와 사용자 파일의 symlink 우회는 거부한다.
 `create_workspace(current_user_id=..., source_file_path=...)`는 FILE_SELECTED draft와 원본 hash를
 만든다. 이후 Reader/매핑 결과를 이용해 불변 draft의 시트·행 범위·매핑·단계를 갱신한다.
 원본 검증을 위해 파일 선택 때 hash를 확보하고 같은 draft를 후속 작업에 전달한다.
-단계는 FILE_SELECTED/HEADER_CONFIGURED/MAPPING이며 첫 단계에는 시트·헤더가 None,
+단계는 FILE_SELECTED/HEADER_CONFIGURED/MAPPING/CODE_VALIDATION/PREVIEW이며 첫 단계에는 시트·헤더가 None,
 후속 단계에는 선택한 시트·헤더 시작/종료·데이터 시작 행이 필요하다.
 `save_workspace(draft, current_user_id)`는 hash를 다시 확인하고 저장 시각을 갱신한다.
 원본이 달라졌으면 저장을 거부하며 오래된 매핑을 새 hash로 자동 승인하지 않는다.
@@ -321,6 +322,55 @@ Workspace가 없으면 None이다. WorkspaceService 자체는 사전/연구 DB�
 호출자는 현재 유효한 사용자 ID와 DB 문맥을 제공해야 한다. 숫자 ID 검사는 인증이나
 DB 복원 후 동일인 확인을 대신하지 않으며 복원 시 재연결은 기존 Phase 14 계약에서 다룬다.
 
+## 행별 Import Preview
+
+`ImportPreviewService(dictionary_service, StreamLookupRepository(connection))`는 이미 초기화된
+DB 연결을 사용한다. 새 DB나 대체 in-memory DB를 만들지 않는다.
+`build_preview(rows, mappings, excluded_rows=..., field_policy=...)`는 입력 범위의 결과와
+상태별 summary를 반환한다. 대량 행은 `iter_preview_rows`로 순회할 수 있다.
+행·셀은 원본 1-based 위치로 연결하며 동일 헤더 문자열이나 tuple의 배열 순서로 찾지 않는다.
+
+매핑을 재검증한 뒤 AUTO_MAPPED/USER_MAPPED만 사용한다. 사전 ID 숫자 대신 정확한
+internal_name으로 stream_code·네 구성요소·stream_name을 구분한다. 동일 semantic의 중복은
+Preview issue로 표시하며 첫/마지막 컬럼을 임의 선택하지 않는다. 재검토 매핑도 차단한다.
+일반 UNMAPPED/DO_NOT_MAP 값은 사용하지 않고 일반 required 항목 전체를 자동 차단하지 않는다.
+
+Phase 4의 `validate_stream_code_cells`가 기존 셀 정규화와 공통 비교 로직을 재사용한다.
+원본/생성 코드가 MATCH이면 원본 후보, 원본이 MISSING이고 구성요소가 유효하면 생성 후보를 쓴다.
+유효한 원본 코드만 있고 구성요소가 누락된 경우도 후보로 허용하며 검증 불가 사실은 유지한다.
+불일치·잘못된 코드·모호한 숫자·관리코드 수식/오류 셀은 자동 선택하지 않는다.
+원본이 잘못되고 생성 코드만 유효한 경우 생성 후보를 보여주되 effective code는 None이다.
+
+안전한 코드와 blocking issue 없는 행만 SELECT한다. PK가 없으면 NEW_STREAM,
+있으면 EXISTING_STREAM이며 비활성 기존 레코드도 존재하는 것으로 조회한다.
+이는 업데이트/덮어쓰기 예정이라는 뜻이 아니다. 차단 문제는 NEEDS_REVIEW,
+명시적 `excluded_rows`는 EXCLUDED가 우선이며 제외 행은 조회하지 않는다.
+원본·생성·effective 코드와 비교 상태를 분리한다. 완전히 빈 행은 기본 생략하되
+부분/마지막 행은 보존한다. 명시적으로 제외한 빈 행도 EXCLUDED로 표시한다.
+`include_blank=True`로 빈 행을 포함할 수 있다. Summary는 포함된 행의 네 상태 개수다.
+
+`PreviewFieldPolicy`는 excluded_internal_names/masked_internal_names의 frozenset을 받는다.
+확정된 운영정보 internal_name 목록이 없으므로 기본값은 둘 다 비어 있다.
+실제 dictionary seed/운영 단계에서 명시적으로 정책을 제공해야 하며 기본 Preview가
+민감정보를 자동으로 탐지·제거한다고 간주하지 않는다. 새 secret detector는 만들지 않았다.
+정책은 raw header가 아닌 internal_name에 적용한다. 제외가 마스킹보다 우선하며 마스킹은
+고정 `[MASKED]` 문자열이다. 연구 식별자인 전체/구성 관리코드 필드는 숨김 대상으로 받지 않는다.
+
+`mapped_values`와 전체 검증 결과는 런타임 내부 객체다. 일반 UI에는 반드시 `row.to_display()`의
+별도 payload를 전달한다. 이 payload에는 정책 제외값이나 원본 ExcelCell이 없으며 stream_name의
+별도 표시 경로에도 동일 정책을 적용한다. 내부 객체 전체를 UI/로그/Export에 직렬화하지 않는다.
+Issue는 코드·고정 메시지·blocking 여부·원본 열 번호만 담으며 영구 data_quality_issue가 아니다.
+stream_name이 없다는 이유만으로 차단하지 않는다. 실제 DB Import의 필수값 검증은 별도 계약이다.
+
+Workspace version 1과 JSON 필드는 유지하고 current_step 허용값만 확장했다.
+새 구현은 기존 5A JSON도 읽는다. 구버전 앱은 새 단계값을 지원하지 않으므로 최신 앱으로 재개한다.
+`rebuild_from_workspace(workspace_service, current_user_id, ...)`는 원본 hash·매핑 재검증 후
+Excel을 다시 열어 Preview를 만들고 완료 직후에도 hash를 확인한다. 재생성 자체는 Workspace를
+저장하지 않는다. Preview 행·값·issue·표시 정책·행 제외 선택은 JSON에 추가하지 않았다.
+재개 후 정책·제외 선택은 호출자가 다시 제공한다. DB 조회는 SELECT만 하며 commit/쓰기/스키마
+변경을 하지 않는다. 일관된 DB 읽기 transaction이 필요하면 기존 연결의 호출자가 관리한다.
+typed value 정규화·Import 유형별 필수값·실제 민감 필드 정책·T1 중단 복구는 Phase 6 착수 전에 확인한다.
+
 ## 테스트와 코드 검사
 
 설치 후 저장소 루트에서 실행한다.
@@ -346,6 +396,8 @@ ExcelCell 연계·I/O 부재와 경계값 invariant를 검증한다.
 매핑 테스트는 synthetic 사전/ExcelColumn과 임시 SQLite로 lookup 재사용·사용자 선택·
 DB 쓰기 부재·사전 변경 후 재검토를 확인한다. Workspace 테스트는 tmp_path만 사용하여
 JSON 필드 제한·소유권·hash·원자 저장 실패·삭제·원본 미변경을 검증한다.
+Preview 테스트는 synthetic 사전·임시 DB에서 코드 선택·중복 semantic·표시 정책·행 보존·
+Workspace 재생성과 SQLite authorizer를 통한 SELECT-only/commit 부재를 검증한다.
 실제 연구자료, 운영 DB, GUI 환경에 의존하지 않는다.
 
 ## 구조
@@ -382,6 +434,9 @@ src/small_stream_research_tool/
   services/column_mapping_service.py 별칭 후보·수동 선택·재개 사전 재검증
   services/workspace_service.py  사용자별 JSON 저장·원본 검증·삭제
   utils/file_hash.py             chunk 기반 SHA-256
+  models/import_preview.py / import_preview_errors.py 런타임 Preview·표시 payload·오류
+  repositories/stream_lookup_repository.py 소하천 PK 존재 여부 SELECT
+  services/import_preview_service.py 행별 identity Preview·summary·재생성
 tests/
   unit/                          설정·로깅
   integration/                   시작점·SQLite 제약·migration 검증

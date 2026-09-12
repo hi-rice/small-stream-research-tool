@@ -10,6 +10,8 @@ class WorkspaceStep(StrEnum):
     FILE_SELECTED = "FILE_SELECTED"
     HEADER_CONFIGURED = "HEADER_CONFIGURED"
     MAPPING = "MAPPING"
+    CODE_VALIDATION = "CODE_VALIDATION"
+    PREVIEW = "PREVIEW"
 
 
 @dataclass(frozen=True)
