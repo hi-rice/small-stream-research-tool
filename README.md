@@ -16,6 +16,7 @@ Phase 3는 .xlsx 구조·명시적 헤더 범위·원본 행/셀을 읽는 Excel
 Phase 4는 소하천 관리코드의 문자열 후보 생성·검증·원본/구성요소 비교를 제공한다.
 Phase 5A는 정확한 별칭 기반 컬럼 매핑 draft와 사용자별 로컬 Workspace JSON을 제공한다.
 Phase 5B는 행별 관리코드 검증·기존 하천 조회·표시 정책을 적용한 Import Preview를 제공한다.
+Phase 6A는 사전 자료형에 따른 값 정규화와 행별 Import 저장 후보 준비를 제공한다.
 로그인 GUI·DB Import·QC 실행·업무 화면·분석은 아직 구현하지 않았다.
 
 ## 환경과 의존성
@@ -369,7 +370,64 @@ Excel을 다시 열어 Preview를 만들고 완료 직후에도 hash를 확인�
 저장하지 않는다. Preview 행·값·issue·표시 정책·행 제외 선택은 JSON에 추가하지 않았다.
 재개 후 정책·제외 선택은 호출자가 다시 제공한다. DB 조회는 SELECT만 하며 commit/쓰기/스키마
 변경을 하지 않는다. 일관된 DB 읽기 transaction이 필요하면 기존 연결의 호출자가 관리한다.
-typed value 정규화·Import 유형별 필수값·실제 민감 필드 정책·T1 중단 복구는 Phase 6 착수 전에 확인한다.
+typed value와 준비 단계 필수값은 아래 Phase 6A를 따른다. 실제 민감 필드 정책과 T1 복구 계약은
+실제 DB Import 구현 전에 확인한다.
+
+## Phase 6A Import Preparation
+
+`ImportPreparationService(dictionary_service).prepare(preview_result.rows, field_policy=...)`는
+불변 `ImportPreparationResult(rows, summary)`를 반환한다. `prepare_row`와
+`iter_prepared_rows`도 제공한다. Preview의 표시값이 아닌 내부 `mapped_values`의 ExcelCell을
+사용하며, 사전의 현재 활성 상태·자료형·매핑 의미와 관리코드를 다시 검증한다.
+
+상태는 `READY / BLOCKED / EXCLUDED`, READY 행의 작업은
+`CREATE_STREAM / USE_EXISTING_STREAM`이다. Preview 차단은 해제하지 않는다.
+신규 하천에는 유효한 11자리 코드, 일치하는 네 구성코드, 비어 있지 않은 원본 하천명이 필요하다.
+전체 코드만 있는 신규 행은 구성요소를 임의 생성하지 않고 차단한다. 검증된 코드의 서식 기반
+후보는 Phase 4 규칙을 재사용한다. 이름 placeholder를 생성하지 않는다.
+
+신규 기본정보는 `PreparedStreamData`로, 동적 특성은 `PreparedCharacteristicValue`로 분리한다.
+행정명·수계·주소·위경도도 일반 특성값으로 중복 준비하지 않는다. 신규 선택 core 항목은 매핑된
+값만 검사하며 좌표는 기존 SQL의 위도 ±90 / 경도 ±180 범위를 따른다. 기존 하천은 이름 누락이나
+다른 core 값으로 UPDATE 후보를 만들지 않으며 해당 core 변환도 수행하지 않는다.
+기존 하천의 준비 특성값이 0개면 no-op BLOCKED, 신규 core가 유효하면 특성값 0개도 READY다.
+
+| 자료형 | 준비 정책 |
+| --- | --- |
+| REAL | 실제 사전 명칭. 유한 int/float 및 ASCII 십진·지수 문자열을 float 후보로 변환. bool, NaN/Inf, 단위·설명·쉼표 문자열과 0으로 underflow하는 값은 거부 |
+| INTEGER | int, 정수인 유한 float, ASCII 정수 문자열만 허용. SQLite signed 64-bit 범위 검사, 소수 문자열·반올림·절삭 금지 |
+| TEXT | 문자열 앞뒤 공백만 제거. 숫자·날짜를 임의 문자열화하지 않음 |
+| DATE | Python date 또는 정확한 ISO 날짜 문자열. datetime의 시간은 자정이어도 자동 삭제하지 않음 |
+| DATETIME | Python datetime 또는 초까지 명시된 ISO 문자열. naive 유지, aware offset 유지. timezone 부여·UTC 환산 없음 |
+
+DATE/DATETIME은 `value_date` TEXT를 공유한다. DATETIME 문자열의 소수초는 최대 6자리이며
+알려지지 않은 offset을 뜻할 수 있는 `-00:00`은 거부한다. `Z`는 같은 UTC 의미의 `+00:00`으로
+표현하고 원본 문자열은 유지한다. Excel Reader의 날짜 셀이 datetime으로 읽히면 DATE 변환은
+차단된다. 시간 제거를 허용할지는 후속 명시적 정책이 필요하다.
+
+None/빈 문자열/공백 문자열은 후보를 만들지 않는다. 일반 항목의 required/nullable 결측은
+비차단 `MISSING_VALUE`로 알리고, 신규 core 필수 누락은 차단한다. 수식·Excel 오류는 결측보다
+먼저 검사하며 계산하거나 cached result를 사용하지 않는다. Import 대상 변환 실패는 차단하고
+실패 값의 후보는 만들지 않는다. 모델 생성 시 네 typed 필드의 exactly-one, 사전 자료형 일치와
+유효값·1-based 행/열 위치를 검사한다. BLOCKED 행의 정상 부분 후보는 검토용이며 저장 불가다.
+Summary의 create/use-existing 및 prepared_value_count는 READY 행만 센다.
+
+문자열 `original_value`는 공백까지 보존하고, 성공한 숫자·날짜는 TEXT/ISO 표현으로 보존한다.
+`unit_id`는 사전 값을 유지한다. 현재 Preview에는 확정 원본 단위 metadata가 없어
+`original_unit=None`이며 헤더에서 추정하지 않는다. 등록된 단위변환도 자동 적용하지 않는다.
+단위가 확인되었다는 의미는 아니므로 실제 Import 전 원본/사전 단위 확인 계약이 필요하다.
+
+`ImportFieldPolicy(excluded_internal_names=frozenset(...))`는 Preview 표시 정책과 별개다.
+internal_name으로 제외된 항목은 원본 표현도 준비하지 않는다. 식별코드 제외 시 행 전체를
+차단한다. 기본 제외 목록은 비어 있으며 **실제 민감 field 목록 seed가 필요**하다.
+고정 issue 메시지에는 원본 값을 넣지 않는다. 준비 객체는 런타임 내부용으로 UI/로그/Export에
+통째로 직렬화하지 않는다. 입력·Workspace JSON·버전 1은 변경하지 않으며 결과를 저장하지 않는다.
+
+사전 SELECT만 사용하고 DB 쓰기·transaction·schema/migration·QC 영구 저장·대표값 변경은 없다.
+READY는 DB 저장 성공이나 사전/DB 상태 잠금을 뜻하지 않는다. 일관된 읽기는 호출자가 관리하며
+Phase 6B는 실제 쓰기 직전에 출처·사전·기존 하천 상태를 다시 확인해야 한다.
+T1의 B commit 후 C 실패에 대한 recovery/idempotency 계약은 Phase 6B/6C 전에 확정하며
+이번 단계에서는 구현하지 않았다. 새 의존성은 없다.
 
 ## 테스트와 코드 검사
 
@@ -398,6 +456,8 @@ DB 쓰기 부재·사전 변경 후 재검토를 확인한다. Workspace 테스�
 JSON 필드 제한·소유권·hash·원자 저장 실패·삭제·원본 미변경을 검증한다.
 Preview 테스트는 synthetic 사전·임시 DB에서 코드 선택·중복 semantic·표시 정책·행 보존·
 Workspace 재생성과 SQLite authorizer를 통한 SELECT-only/commit 부재를 검증한다.
+Preparation 테스트는 자료형 변환 경계·exactly-one·신규/기존 core 분리·정책 제외·결측·
+원본 추적·결정성·Workspace 미변경과 SELECT-only/전체 DB 미변경을 검증한다.
 실제 연구자료, 운영 DB, GUI 환경에 의존하지 않는다.
 
 ## 구조
@@ -437,6 +497,9 @@ src/small_stream_research_tool/
   models/import_preview.py / import_preview_errors.py 런타임 Preview·표시 payload·오류
   repositories/stream_lookup_repository.py 소하천 PK 존재 여부 SELECT
   services/import_preview_service.py 행별 identity Preview·summary·재생성
+  models/import_preparation.py / import_preparation_errors.py 저장 후보·준비 오류
+  services/import_preparation_service.py 행별 저장 적격성·core/특성 분리·summary
+  services/value_normalization_service.py I/O 없는 자료형 변환
 tests/
   unit/                          설정·로깅
   integration/                   시작점·SQLite 제약·migration 검증
