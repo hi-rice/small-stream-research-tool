@@ -10,14 +10,15 @@
 Phase 0 개발 기반과 Phase 1 SQLite 기반을 제공한다. DB 연결, 19개 V1 테이블,
 39개 FK, CHECK·UNIQUE·부분 유일 인덱스와 순차 SQL migration을 구현했다.
 CLI는 시작 확인 메시지를 기록하고 종료하며 DB 초기화는 명시적 API 호출로만 수행한다.
-로그인·Excel 처리·QC 실행·업무 화면·분석은 아직 구현하지 않았다.
+Phase 1A는 사용자 생성·인증·비밀번호 변경·활성 상태 처리의 백엔드를 제공한다.
+로그인 GUI·Excel 처리·QC 실행·업무 화면·분석은 아직 구현하지 않았다.
 
 ## 환경과 의존성
 
 - Python **3.12.x**, Windows를 기본 대상으로 한다.
 - 표준 `venv` + `pip`, `pyproject.toml` + setuptools의 `src` 패키지 구조를 사용한다.
   별도 패키지 관리자 없이 Python 기본 도구로 설치·검증하기 위한 선택이다.
-- 현재 실행 의존성은 Python 표준 라이브러리뿐이다.
+- 실행 의존성은 Python 표준 라이브러리와 비밀번호 처리를 위한 argon2-cffi다.
 - 개발 도구는 pytest(테스트), ruff(lint·format)다. mypy는 도입하지 않았다.
 - 향후 PySide6, pandas, openpyxl, matplotlib는 실제 사용하는 Phase에서 추가한다.
   SQLite는 표준 `sqlite3`를 사용하며 ORM은 도입하지 않는다.
@@ -62,7 +63,7 @@ logging은 앱 이름 공간의 모듈 logger를 사용하며 기본 INFO 레벨
 현재 시작 로그에 환경값·사용자 경로·원본자료를 넣지 않는다.
 로깅 기반이 임의 민감정보를 자동 제거해 주는 것은 아니므로 향후 호출부에서도
 비밀번호·인증정보·IP·RTSP·연락처·원본 셀 값을 기록하지 않아야 한다.
-공통 예외 계층은 실제 Service 예외가 필요한 단계에서 도입한다.
+사용자/인증 application exception은 `models/errors.py`에 둔다. 오류 메시지에 입력 비밀을 넣지 않는다.
 
 ## SQLite 기반 API
 
@@ -90,6 +91,33 @@ login_id는 정규화된 소문자 저장 형태만 허용하며 DB가 자동 �
 role·매핑 상태/방법·quality_status 등 닫힌 목록이 확정되지 않은 필드는 임의 enum으로 제한하지 않는다.
 날짜/JSON 형식, provenance 교차 일치, 현재값 선정·QC 실행도 후속 Phase 책임이다.
 
+## 로컬 인증 백엔드
+
+`UserRepository(connection)`과 `AuthService(repository)`를 명시적으로 구성한다.
+Service는 `create_user`, `authenticate`, `change_password`, `set_active`,
+`needs_initial_user_setup`을 제공한다. 기본 계정을 자동 생성하지 않는다.
+초기 등록 필요 여부는 비활성 계정도 포함한 전체 사용자 수가 0인지로 판단한다.
+활성 상태 변경은 계정을 보존하며, 비활성 계정의 로그인·비밀번호 변경은 거부한다.
+생성·인증·변경 작업은 기존 transaction 기반을 사용하고 성공 시 UTC 시각을 기록한다.
+로그인 성공은 last_login_at과 updated_at을 갱신하며 실패 시 변경하지 않는다.
+
+비밀번호는 argon2-cffi의 Argon2id `RFC_9106_LOW_MEMORY` 프로필로 처리한다
+(memory 64 MiB, time cost 3, parallelism 4). salt와 hash encoding은 라이브러리가 관리한다.
+[argon2-cffi 문서](https://argon2-cffi.readthedocs.io/en/stable/howto.html)를 따른다.
+구현 정책으로 최소 15자, 빈 값·공백만 있는 값 금지를 적용한다.
+최소 길이는 [NIST SP 800-63B-4의 단일 비밀번호 인증 기준](https://pages.nist.gov/800-63-4/sp800-63b.html#passwordver)을 참고했다.
+대문자·숫자·특수문자를 강제하지 않고, 앞뒤 공백을 포함한 입력을 그대로 검증한다.
+비밀번호의 trim·Unicode 정규화·절단을 수행하지 않는다.
+
+login_id는 앞뒤 공백 제거 → 소문자 변환 → ASCII 허용 문자·4~50자 검증을 적용한다.
+표시명은 필수이며 부서·role은 nullable 메타데이터다. role 권한 체계는 구현하지 않았다.
+Repository의 내부 `UserRecord`만 password_hash를 보유하며 repr에서 제외한다.
+Service는 hash 없는 `User`를 반환한다. 내부 인증 레코드를 일반 출력·직렬화에 사용하지 않는다.
+계정 상태·생성 API는 향후 앱 workflow의 기반이며 세션이나 관리자 권한 검사를 대신하지 않는다.
+
+V1에서는 자동 비밀번호 복구를 제공하지 않는다. 이메일/전화번호·DB 직접 수정 복구,
+임시 비밀번호 발급은 없으며 로그인·최초 등록 GUI도 아직 없다.
+
 ## 테스트와 코드 검사
 
 설치 후 저장소 루트에서 실행한다.
@@ -105,6 +133,8 @@ role·매핑 상태/방법·quality_status 등 닫힌 목록이 확정되지 않
 통합 smoke test는 설치된 module/console 진입점을 임시 작업 폴더에서 실행한다.
 DB 통합 테스트는 19개 테이블·39개 FK, 제약 위반 거부, 재초기화·순차 적용과
 DDL/DML/버전 기록 실패 rollback을 검증한다.
+인증 테스트는 실제 Argon2id와 임시 SQLite로 정규화·중복·인증·비밀번호 변경·
+비활성 계정·실패 rollback·비밀 비노출을 검증한다.
 실제 연구자료, 운영 DB, GUI 환경에 의존하지 않는다.
 
 ## 구조
@@ -123,13 +153,18 @@ src/small_stream_research_tool/
     migrations.py                버전 조회·순차 migration runner
     migrations/001_initial.sql   V1 초기 스키마
   utils/logging.py                콘솔 로깅
+  utils/timestamps.py             UTC 시스템 시각
+  models/user.py / errors.py      사용자 모델·인증 오류
+  repositories/user_repository.py 사용자 저장소
+  security/passwords.py          Argon2id 비밀번호 처리
+  services/auth_service.py       로컬 인증 백엔드
 tests/
   unit/                          설정·로깅
   integration/                   시작점·SQLite 제약·migration 검증
 ```
 
-`ui`, `services`, `repositories`, `models` 등은 해당 Phase에서 필요할 때
-생성한다. 이후에도 UI → Service → Repository → Database 방향을 유지한다.
+`ui`와 다른 업무 모듈은 해당 Phase에서 필요할 때 생성한다.
+이후에도 UI → Service → Repository → Database 방향을 유지한다.
 설계문서의 ‘구현 전’ 표현은 설계 기준 시점이며 현재 구현 상태는 이 README에서 설명한다.
 
 ## 자료 보호
