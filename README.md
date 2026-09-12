@@ -14,7 +14,8 @@ Phase 1A는 사용자 생성·인증·비밀번호 변경·활성 상태 처리�
 Phase 2는 분류·사전 버전·단위·변환 규칙·표준 항목·별칭 관리와 정확한 별칭 lookup을 제공한다.
 Phase 3는 .xlsx 구조·명시적 헤더 범위·원본 행/셀을 읽는 Excel Reader를 제공한다.
 Phase 4는 소하천 관리코드의 문자열 후보 생성·검증·원본/구성요소 비교를 제공한다.
-로그인 GUI·Excel 자동매핑/DB Import·QC 실행·업무 화면·분석은 아직 구현하지 않았다.
+Phase 5A는 정확한 별칭 기반 컬럼 매핑 draft와 사용자별 로컬 Workspace JSON을 제공한다.
+로그인 GUI·행별 Import Preview·DB Import·QC 실행·업무 화면·분석은 아직 구현하지 않았다.
 
 ## 환경과 의존성
 
@@ -258,6 +259,68 @@ ExcelCell·Reader를 변경하거나 파일·컬럼을 자동 탐색하지 않�
 일반 원본값 오류는 검증 결과로 반환한다. 새 의존성·DB 쓰기·중복 조회·QC 저장은 없다.
 로드맵의 중복 검출 연계는 이번 요청 범위에서 구현하지 않았다.
 
+## 컬럼 매핑 Draft와 로컬 Workspace
+
+`ColumnMappingService(dictionary_service)`는 기존 `find_dictionary_by_header`를 호출한다.
+`build_initial_mappings(columns, source_scope=None)`는 Phase 3 `ExcelColumn.display_header`를
+그대로 조회하며 기존 NFC/공백 축약/ASCII 소문자화·scope lookup 정책을 재사용한다.
+정확한 scope → GLOBAL 순서이고 비활성 exact-scope 별칭은 GLOBAL로 대체하지 않는다.
+빈/미등록 헤더는 UNMAPPED이며 fuzzy·의미 추론·컬럼 순서 추론은 없다.
+중복 헤더도 원본 열 번호별로 보존하며 헤더 part는 원본 행·표시 문자열·병합 anchor를 유지한다.
+이 모델에는 데이터 행이나 ExcelCell 객체를 넣지 않는다.
+
+Draft 상태는 AUTO_MAPPED/USER_MAPPED/UNMAPPED/DO_NOT_MAP/NEEDS_REVIEW다.
+방법은 AUTO_ALIAS/USER/NONE이며 자동 상태는 등록 별칭으로 얻은 후보를 뜻한다.
+이 enum은 메모리/Workspace 계약이며 DB mapping_status 예시를 변경하거나 저장하지 않는다.
+`set_user_mapping(mapping, dictionary_id)`는 활성/미폐기 항목과 활성 분류·단위를 확인한다.
+`clear_mapping`은 미매핑, `mark_do_not_map`은 의도적 제외로 전환하고 원본 metadata는 유지한다.
+수동 선택을 column_alias 규칙으로 자동 저장하지 않는다.
+`refresh_auto_mappings`는 AUTO_MAPPED/UNMAPPED만 재평가하며 사용자 선택·제외·재검토는 유지한다.
+`mapping_summary`는 상태별 개수만 반환한다. 행별 판정·QC·값 변환은 없다.
+
+`WorkspaceService()`는 기존 경로 정책의 `%LOCALAPPDATA%/NDMI/small-stream-research-tool/workspace`
+아래 `user_<user_id>.json` 하나를 사용한다. 생성자·조회만으로 디렉터리를 만들지 않으며
+저장 시 생성한다. 테스트는 `WorkspaceService(tmp_path / "workspace")`처럼 주입한다.
+repository 내부 경로와 사용자 파일의 symlink 우회는 거부한다.
+단일 사용자 로컬 작업이 전제이며 동시 writer 조정이나 인증 session을 구현하지 않는다.
+
+`create_workspace(current_user_id=..., source_file_path=...)`는 FILE_SELECTED draft와 원본 hash를
+만든다. 이후 Reader/매핑 결과를 이용해 불변 draft의 시트·행 범위·매핑·단계를 갱신한다.
+원본 검증을 위해 파일 선택 때 hash를 확보하고 같은 draft를 후속 작업에 전달한다.
+단계는 FILE_SELECTED/HEADER_CONFIGURED/MAPPING이며 첫 단계에는 시트·헤더가 None,
+후속 단계에는 선택한 시트·헤더 시작/종료·데이터 시작 행이 필요하다.
+`save_workspace(draft, current_user_id)`는 hash를 다시 확인하고 저장 시각을 갱신한다.
+원본이 달라졌으면 저장을 거부하며 오래된 매핑을 새 hash로 자동 승인하지 않는다.
+
+V1 JSON에는 workspace_version=1, user_id, source_file_path, source_file_sha256,
+selected_sheet_name, header_start_row, header_end_row, data_start_row, column_mappings,
+current_step, saved_at, source_scope만 저장한다. 매핑/헤더 part도 정해진 필드만 허용하고
+알 수 없는 필드·중복 JSON 키·잘못된 타입/상태 조합·지원하지 않는 버전은 거부한다.
+SHA-256은 1 MiB chunk로 읽으며 저장 시각은 기존 UTC helper를 사용한다.
+전체 JSON은 8 MiB, 개별 텍스트 metadata는 8,192자까지 허용한다.
+
+`load_workspace(current_user_id)`는 JSON·버전·소유자·원본 존재/파일 여부·hash를 검증한다.
+사전 재검증까지 포함한 재개 API는 `ColumnMappingService.resume_workspace(workspace_service,
+current_user_id)`다. 결과의 original은 저장된 선택, resumed는 재검증된 선택이다.
+대상 사전 항목의 삭제/비활성/폐기 또는 자동매핑 별칭 변경 시 기존 ID를 유지하며
+NEEDS_REVIEW로 표시하고 다른 항목으로 바꾸지 않는다. 재개만으로 JSON을 다시 저장하지 않는다.
+파일 없음·hash 불일치는 재개를 거부하며 자동 검색·원본 재지정 기능은 후속 단계다.
+Workspace가 없으면 None이다. WorkspaceService 자체는 사전/연구 DB를 조회하지 않는다.
+
+저장은 같은 폴더의 임시 파일 쓰기 → flush/fsync → 닫기 → os.replace로 수행한다.
+일반 쓰기 실패 시 기존 JSON을 보존하고 자체 임시 파일을 정리한다. 강제 종료/전원 장애로
+교체 전 임시 파일이 남을 가능성은 있으며 자동 재개 대상으로 읽지 않는다.
+`delete_workspace(user_id)`는 해당 사용자 JSON만 삭제하며 없으면 False다.
+자동 만료는 두지 않고 명시적 취소로 삭제한다. Import 성공 후 정리는 Phase 6에서 연결한다.
+
+원본 데이터 행·전체 셀·비밀번호/hash·임의 민감 필드는 저장하지 않는다. 메타데이터의
+비밀번호/서비스키 표기·IP·RTSP·연락처 등 보수적 탐지에 걸리면 저장/재개를 거부한다.
+값을 임의로 마스킹해 원본 헤더를 바꾸지 않는다. 이 검사는 임의 문자열 속 모든 비밀을
+판별하는 기능은 아니므로 후속 UI의 민감정보 확인·차단 정책을 대신하지 않는다.
+새 Service는 원본값·경로·JSON을 로그에 기록하지 않고 application 오류에 입력을 넣지 않는다.
+호출자는 현재 유효한 사용자 ID와 DB 문맥을 제공해야 한다. 숫자 ID 검사는 인증이나
+DB 복원 후 동일인 확인을 대신하지 않으며 복원 시 재연결은 기존 Phase 14 계약에서 다룬다.
+
 ## 테스트와 코드 검사
 
 설치 후 저장소 루트에서 실행한다.
@@ -280,6 +343,9 @@ Excel 테스트는 tmp_path에서 생성한 synthetic xlsx로 병합/빈/중복 
 위치·빈/부분 행·Preview·자원 해제·원본 hash 동일성과 DB 접근 부재를 검증한다.
 관리코드 테스트는 synthetic 문자열·숫자·서식으로 형식/폭·원본/후보 독립성·비교·불변성·
 ExcelCell 연계·I/O 부재와 경계값 invariant를 검증한다.
+매핑 테스트는 synthetic 사전/ExcelColumn과 임시 SQLite로 lookup 재사용·사용자 선택·
+DB 쓰기 부재·사전 변경 후 재검토를 확인한다. Workspace 테스트는 tmp_path만 사용하여
+JSON 필드 제한·소유권·hash·원자 저장 실패·삭제·원본 미변경을 검증한다.
 실제 연구자료, 운영 DB, GUI 환경에 의존하지 않는다.
 
 ## 구조
@@ -311,6 +377,11 @@ src/small_stream_research_tool/
   services/excel_reader.py       .xlsx 구조·헤더·행 읽기 전용 Service
   models/stream_code.py / stream_code_errors.py 관리코드 검증 결과·API 오류
   services/stream_code_service.py 관리코드 후보 정규화·생성·독립 검증·비교
+  models/column_mapping.py / mapping_errors.py 매핑 draft·상태·오류
+  models/workspace.py / workspace_errors.py 재개 metadata·오류
+  services/column_mapping_service.py 별칭 후보·수동 선택·재개 사전 재검증
+  services/workspace_service.py  사용자별 JSON 저장·원본 검증·삭제
+  utils/file_hash.py             chunk 기반 SHA-256
 tests/
   unit/                          설정·로깅
   integration/                   시작점·SQLite 제약·migration 검증
