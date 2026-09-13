@@ -20,7 +20,8 @@ Phase 6A는 사전 자료형에 따른 값 정규화와 행별 Import 저장 후
 Phase 6B-1은 source/Import 출처·소하천·특성값의 SQLite 저장소 primitive를 제공한다.
 Phase 6B-2는 단일 시트 Prepared 결과의 실제 DB Import Execution을 제공한다.
 Phase 6C는 RUNNING Import의 근거 검사와 명시적 SUCCESS 종료 복구를 제공한다.
-로그인 GUI·Import 화면·QC 실행·업무 화면·분석은 아직 구현하지 않았다.
+Phase 7B-1은 명시적 대상을 검사하고 issue를 생성하는 범용 QC 기반을 제공한다.
+로그인 GUI·Import 화면·업무 화면·분석은 아직 구현하지 않았다.
 
 ## 환경과 의존성
 
@@ -587,6 +588,49 @@ import_history의 SUCCESS·UTC finished_at·검증된 행 개수를 기록한다
 고정 reason code·ID·개수·판정만 제공하고 raw 값·설정 전체·경로를 노출하지 않는다.
 source/sheet/mapping/stream/value·현재 사용값·QC·record_history는 생성/수정/삭제하지 않는다.
 새 DB status·schema·migration·의존성·자동 retry·cleanup·다중 시트 실행은 추가하지 않았다.
+
+## Phase 7B-1 Generic QC Engine
+
+`QualityControlService(connection).evaluate(request, field_policy=policy)`는 읽기 전용 Finding을,
+`run(request, field_policy=policy)`는 동일 검사를 수행한 뒤 새/기존 issue ID를 반환한다.
+`QualityControlRequest`는 명시적 `characteristic_value_ids`와 `RequiredImportTarget` 목록을 받는다.
+자동 전체 DB 검사나 현재 사용값 선택은 없다. 기존 `ImportFieldPolicy`를 반드시 명시적으로 전달하며,
+등록된 민감 internal_name은 규칙 평가에서 제외한다. 운영 민감 항목 seed는 별도 확정이 필요하다.
+
+지원 규칙은 quality_rule.dictionary_id로 연결한 활성 FLEX 항목에 한정한다.
+연구 항목명·연구 임계값을 코드에 하드코딩하거나 실제 연구 규칙을 seed하지 않는다.
+
+- `REQUIRED`: target_type=`STREAM_DICTIONARY`, dictionary.required=True인 명시적 규칙이다.
+  RequiredImportTarget(stream_code, dictionary_id, import_id)의 SUCCESS Import 안에서
+  활성 source_type=IMPORT 특성값이 존재하는지 검사한다. NULL typed 행을 찾지 않으며,
+  다른 Import·보정값·현재 사용값을 대신 사용하지 않는다. required 플래그만으로 규칙을 만들지 않는다.
+  CORE 필드 검사나 optional 항목의 REQUIRED 규칙은 지원하지 않고 설정 오류로 거부한다.
+- `NON_NEGATIVE`: target_type=`CHARACTERISTIC_VALUE`, REAL/INTEGER 항목의 명시한 활성 value ID만
+  검사한다. 음수만 Finding이며 0은 허용한다. 모든 숫자 항목에 자동 적용하지 않는다.
+- `RANGE`: 같은 값 범위에서 parameters_json의 min/max 한쪽 또는 양쪽을 사용한다.
+  include_min/include_max는 생략 시 inclusive이며 명시적 false는 exclusive다.
+  숫자 경계·Boolean flag·min≤max·허용 키를 검증한다. NaN/Infinity·중복 JSON 키·타입 오류·
+  unsupported rule/target은 고정 메시지의 설정 오류이며 data issue로 저장하지 않는다.
+  REQUIRED/NON_NEGATIVE parameter는 NULL 또는 빈 객체만 지원한다.
+
+활성 규칙 정의를 검증한 뒤 해당 dictionary와 명시적 scope에 맞는 규칙만 평가한다.
+평가기는 SQL과 분리되어 있으며 저장된 typed 필드의 일관성만 확인한다. 재parsing·단위변환은 없다.
+실제 schema의 `default_severity`를 그대로 issue severity에 복사한다. rule_version과 검증된
+parameter JSON의 결정적 표현을 snapshot으로 저장하며 새 issue는 UNREVIEWED·is_active=1이다.
+원본/비교 값은 이번 단계에서 모두 NULL로 두고 message/issue_type은 고정 문자열을 사용한다.
+
+dedup은 active issue의 rule_id, value ID 또는 stream/dictionary/import scope, 출처,
+issue_type, severity, rule version/parameter snapshot을 비교한다. NULL도 명시적으로 비교한다.
+동일 판정은 기존 issue ID를 반환하며 검토 상태를 변경하지 않는다. 정의가 달라진 판정은 별도
+issue로 보존한다. 평가·dedup·모든 issue INSERT는 하나의 BEGIN IMMEDIATE transaction이며,
+중간 저장 실패 시 해당 실행의 issue 전체를 rollback한다. Repository는 commit하지 않는다.
+
+Repository는 활성 규칙/issue 조회와 stream별 active severity 개수도 제공한다.
+active ERROR가 있으면 ERROR, WARNING/INFO만 있으면 NEEDS_REVIEW, 없으면 NORMAL이다.
+review_status와 독립적인 집계이며 NORMAL은 검사 실행 완료를 증명하지 않는다.
+기존 issue의 해소 반영·자동 비활성화/reconciliation은 Phase 7B-2에 남긴다.
+관리코드·parsing QC 중복 구현, reference/statistical/unit/GIS QC, 자동 보정·DELETE,
+stream/value/대표값/현재 사용값 변경 및 review workflow는 포함하지 않는다.
 
 ## 테스트와 코드 검사
 
