@@ -18,6 +18,7 @@ from small_stream_research_tool.models.quality_control_errors import (
     QualityControlPersistenceError,
     QualityRuleConfigurationError,
 )
+from small_stream_research_tool.models.reference_comparison import comparison_snapshot
 from small_stream_research_tool.repositories.dictionary_repository import DictionaryRepository
 from small_stream_research_tool.repositories.import_persistence_repository import (
     CharacteristicValueRepository,
@@ -31,6 +32,9 @@ from small_stream_research_tool.repositories.quality_control_repository import (
 )
 from small_stream_research_tool.services.dictionary_service import DictionaryService
 from small_stream_research_tool.services.quality_rule_evaluator import compile_rule
+from small_stream_research_tool.services.reference_comparison_evaluator import (
+    compile_reference_rule,
+)
 from small_stream_research_tool.utils.timestamps import utc_now_text
 
 _MESSAGES = {
@@ -235,50 +239,127 @@ class QualityControlService:
                 findings = self._evaluate(
                     request, field_policy, checked_scopes=scopes, rule_ids=rule_ids
                 )
-                old_scopes = {}
-                for scope in scopes:
-                    for issue_id in self._repository.list_active_ids_for_scope(scope):
-                        old_scopes[issue_id] = scope
-                kept, pending = set(), []
-                for finding in findings:
-                    matches = self._repository.list_active_identical_ids(finding)
-                    if matches:
-                        _require(set(matches) <= old_scopes.keys())
-                        kept.update(matches)
-                    else:
-                        pending.append(finding)
-                deactivated = tuple(sorted(old_scopes.keys() - kept))
-                timestamp = utc_now_text()
-                created = tuple(
-                    self._repository.create_issue(f, timestamp=timestamp) for f in pending
-                )
-                for issue_id in deactivated:
-                    self._repository.deactivate_issue(issue_id, old_scopes[issue_id])
                 # 요청한 stream들의 현재 active 집계: 미검사/disabled 규칙의 기존 issue도 포함한다.
                 streams = {t.stream_code for t in request.required_targets}
                 streams.update(
                     self._values.get_by_id(i).stream_code for i in request.characteristic_value_ids
                 )
-                counts = [self._repository.active_severity_counts(s) for s in sorted(streams)]
-                status = QCSeverityCounts(
-                    sum(c.error for c in counts),
-                    sum(c.warning for c in counts),
-                    sum(c.info for c in counts),
-                ).status
-                result = QualityRecheckResult(
-                    len(scopes),
-                    len(findings),
-                    tuple(sorted(kept)),
-                    created,
-                    deactivated,
-                    status,
-                    utc_now_text(),
-                )
+                result = self._reconcile(scopes, findings, streams)
             return result
         except QualityControlError:
             raise
         except Exception:
             raise QualityControlPersistenceError() from None
+
+    def compare_reference(self, target_value_id, reference_value_id, rule_id, *, field_policy=None):
+        """명시한 한 쌍만 비교하고 reconcile한다. 다른 reference의 issue는 보존한다."""
+        try:
+            with transaction(self._connection):
+                _require(type(field_policy) is ImportFieldPolicy)
+                _require(all(_id(i) for i in (target_value_id, reference_value_id, rule_id)))
+                target = self._values.get_by_id(target_value_id)
+                reference = self._values.get_by_id(reference_value_id)
+                _require(target is not None and reference is not None)
+                _require(target.is_active and reference.is_active)
+                _require(target.stream_code == reference.stream_code)
+                _require(target.dictionary_id == reference.dictionary_id)
+                item = self._item(target.dictionary_id)
+                _require(item.internal_name not in field_policy.excluded_internal_names)
+                rule = self._repository.get_rule(rule_id)
+                _require(rule is not None)
+                compiled = compile_reference_rule(rule, item)
+                if not rule.is_enabled:
+                    result = self._reconcile((), (), {target.stream_code})
+                else:
+                    _require(target.unit_id == reference.unit_id)
+                    column = self._provenance(target)
+                    self._provenance(reference)
+
+                    def typed(value):
+                        values = (
+                            value.value_integer,
+                            value.value_number,
+                            value.value_text,
+                            value.value_date,
+                        )
+                        _require(sum(v is not None for v in values) == 1)
+                        return {
+                            "INTEGER": value.value_integer,
+                            "REAL": value.value_number,
+                            "TEXT": value.value_text,
+                        }[item.data_type]
+
+                    mismatch = compiled.violated(typed(target), typed(reference))
+                    scope = QCCheckedScope(
+                        rule_id,
+                        target_value_id,
+                        target.stream_code,
+                        target.dictionary_id,
+                        target.import_id,
+                        target.import_sheet_id,
+                        target.source_row,
+                        column,
+                        reference_value_id,
+                    )
+                    finding = QCFinding(
+                        rule_id,
+                        rule.rule_code,
+                        rule.rule_version,
+                        comparison_snapshot(compiled.parameters_snapshot, reference_value_id),
+                        target_value_id,
+                        target.stream_code,
+                        target.dictionary_id,
+                        target.import_id,
+                        target.import_sheet_id,
+                        target.source_row,
+                        column,
+                        "REFERENCE_VALUE_MISMATCH",
+                        rule.default_severity,
+                        "Value differs from the explicitly selected reference.",
+                    )
+                    result = self._reconcile(
+                        (scope,), (finding,) if mismatch else (), {target.stream_code}
+                    )
+            return result
+        except QualityControlError:
+            raise
+        except Exception:
+            raise QualityControlPersistenceError() from None
+
+    def _reconcile(self, scopes, findings, streams):
+        """호출자가 소유한 transaction 안에서만 공통 reconciliation을 수행한다."""
+        old_scopes = {}
+        for scope in scopes:
+            for issue_id in self._repository.list_active_ids_for_scope(scope):
+                old_scopes[issue_id] = scope
+        kept, pending = set(), []
+        for finding in findings:
+            matches = self._repository.list_active_identical_ids(finding)
+            if matches:
+                _require(set(matches) <= old_scopes.keys())
+                kept.update(matches)
+            else:
+                pending.append(finding)
+        deactivated = tuple(sorted(old_scopes.keys() - kept))
+        timestamp = utc_now_text()
+        created = tuple(self._repository.create_issue(f, timestamp=timestamp) for f in pending)
+        for issue_id in deactivated:
+            self._repository.deactivate_issue(issue_id, old_scopes[issue_id])
+        counts = [self._repository.active_severity_counts(s) for s in sorted(streams)]
+        status = QCSeverityCounts(
+            sum(c.error for c in counts),
+            sum(c.warning for c in counts),
+            sum(c.info for c in counts),
+        ).status
+        return QualityRecheckResult(
+            len(scopes),
+            len(findings),
+            tuple(sorted(kept)),
+            created,
+            deactivated,
+            status,
+            utc_now_text(),
+        )
 
     def _provenance(self, value):
         if value.import_id is not None:

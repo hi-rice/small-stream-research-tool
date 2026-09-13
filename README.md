@@ -751,3 +751,73 @@ REQUIRED는 값 ID 없이 소하천/사전/Import 단위로 검사하며 다른 
 활성 ERROR는 ERROR, WARNING/INFO만 있으면 NEEDS_REVIEW, 없으면 NORMAL이다.
 inactive issue와 review_status는 이 판정에 영향을 주지 않는다. 검사 수 0이나 NORMAL이
 전체 규칙 검사를 증명하지는 않는다. schema 변경 없이 구현하며 별도 해소 시각 컬럼은 없다.
+
+
+## Phase 7C-1 Reference Comparison QC
+
+reference는 정답이 아니라 연구자가 선택한 비교 기준자료다. mismatch는 검토 대상이며
+자동 보정이나 reference 값으로 덮어쓰기를 하지 않는다. 하상경사·소하천 연장·유역면적·
+계획홍수량은 향후 rule registration 후보이고, 이번 단계에서 운영 규칙을 seed하지 않는다.
+
+`QualityControlService.compare_reference(target_value_id, reference_value_id, rule_id,
+field_policy=policy)`는 호출자가 지정한 활성 characteristic_value 두 개만 비교한다.
+같은 stream_code와 dictionary_id, 활성 FLEX 사전항목이어야 한다. 같은 ID 비교도 허용하며
+동일 값으로 평가한다. 대표값·최신/최초 자료·파일명·최신 계획 연도·source priority를 이용해
+어느 쪽도 자동 선택하지 않는다. 관리코드 validator나 CORE 소하천명 비교를 추가하지 않는다.
+
+규칙은 `rule_type=REFERENCE_COMPARE`, `target_type=CHARACTERISTIC_VALUE`이고
+명시적인 dictionary_id가 필요하다. severity는 `quality_rule.default_severity`를 따른다.
+연구 규칙 등록 기본 정책은 WARNING이지만 엔진이 이를 강제하거나 ERROR로 바꾸지 않는다.
+Disabled 규칙은 검사 수 0을 반환하고 기존 issue를 유지한다. 잘못된 요청·규칙은 오류다.
+
+비교 정책:
+
+- INTEGER·REAL·TEXT 지원. DATE/DATETIME 및 CORE 항목은 configuration error.
+- 기본은 exact 비교. REAL은 저장된 float의 십진 문자열을 정확한 유리수로 바꾸어 비교한다.
+  이는 원본 Excel 소수의 복원이 아니며, `0.1 + 0.2`와 `0.3`의 저장값 차이를 숨기지 않는다.
+- TEXT는 공백·대소문자까지 그대로 비교한다. fuzzy matching이나 이름 보정은 없다.
+- parameters_json은 NULL/빈 객체 또는 `comparison`(`numeric`/`text`, 자료형과 일치),
+  `absolute_tolerance` 또는 `relative_tolerance`를 지원한다. 두 tolerance의 동시 지정은 거부한다.
+- 허용오차는 유한한 0 이상의 JSON 숫자만 허용한다. bool·문자열·음수·NaN/Infinity·중복 키·
+  미지원 키(RANGE min/max 포함)는 거부한다. TEXT에는 tolerance를 허용하지 않는다.
+- 절대 허용오차: `abs(target-reference) <= absolute_tolerance`이면 match.
+- 상대 허용오차: `abs(target-reference) <= relative_tolerance * abs(reference)`이면 match.
+  reference가 0이면 target도 0이더라도 비교 오류이며 exact fallback하지 않는다.
+- 기본 연구 tolerance는 없다. 숫자 비교 연산은 유리수로 수행하여 경계 연산 반올림을 피한다.
+- 표준화된 `unit_id`가 같아야 한다. 둘 다 NULL이면 단위 추정 없이 비교하지만,
+  한쪽만 NULL이거나 서로 다르면 오류다. original_unit은 원본 출처 문자열이며 변환 근거로
+  사용하지 않는다. 자동 단위변환 및 UNIT mismatch issue 생성은 Phase 7C-1에 포함하지 않는다.
+
+Finding은 기존 불변 QCFinding이며 `REFERENCE_VALUE_MISMATCH`를 사용한다.
+issue의 출처 컬럼은 target을 가리킨다. 양쪽 provenance의 연결을 검증하지만 reference 출처를
+새 컬럼에 복제하지 않는다. raw target/reference는 message·repr·error에 넣지 않고
+issue.original_value/compare_value는 NULL로 유지한다.
+
+Schema를 변경하지 않고 reference identity를 다음 versioned snapshot으로 보존한다:
+
+```json
+{"format":"reference_compare_v1","rule_parameters":{"absolute_tolerance":0.01},"execution":{"reference_value_id":50}}
+```
+
+`rule_parameters`는 원래 quality_rule.parameters_json의 의미를 그대로 보존한다(NULL도 보존).
+`execution`은 호출 입력이다. quality_rule 자체를 수정하지 않으며 reference ID를 영구 규칙
+parameter로 등록하지 않는다. 기존 일반 QC snapshot 형식도 변경하지 않는다.
+Reference ID는 snapshot 안의 논리적 식별자이며 전용 FK가 아니다. reference 자료 자체가
+사후 변경되면 이 snapshot만으로 당시 숫자/문자열을 복원할 수는 없다.
+
+Phase 7B-2 공통 reconciliation을 재사용한다. rule·target·reference 쌍과 target provenance가
+검사 범위이며, 기존 dedup에 canonical snapshot이 포함되어 reference A/B가 합쳐지지 않는다.
+같은 쌍의 동일 mismatch는 ID와 검토 이력을 유지한다. 해소되면 is_active만 0으로 변경하고
+재발하면 새 행을 생성한다. 같은 쌍의 규칙 버전·정책·severity 변경은 이전 snapshot을 보존하며
+이전 issue 비활성화 및 새 issue 생성을 수행한다. 다른 reference 쌍의 issue는 유지한다.
+B를 선택했다는 이유만으로 A와의 문제를 해소하지 않는다. 다른 종류의 QC issue도 유지한다.
+손상되거나 모르는 snapshot은 임의 해석하여 비활성화하지 않는다.
+
+반환값은 기존 QualityRecheckResult다. 단일 BEGIN IMMEDIATE에서 검증·평가·dedup·저장·
+비활성화·상태 집계를 수행하며 실패 시 모두 rollback한다. status는 target 소하천의 활성 issue
+전체를 포함한다. 원본값·small_stream·현재 사용값·참조 캐시·보정 이력은 변경하지 않는다.
+
+기존 evaluate/run/recheck는 reference 입력이 없으므로 REFERENCE_COMPARE를 처리하지 않는
+기존 오류 계약을 유지한다. 활성 reference 규칙이 함께 등록되어 있다면 일반 재검사는
+`recheck(..., rule_ids=(일반_규칙_ID, ...))`로 범위를 명시하고 reference 비교는 별도 API로 호출한다.
+통합 batch orchestration, 기준자료 선택 UI, 과거 기준자료 비교는 이번 범위가 아니다.

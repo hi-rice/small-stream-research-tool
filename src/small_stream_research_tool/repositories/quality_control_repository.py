@@ -11,6 +11,7 @@ from small_stream_research_tool.models.quality_control import (
     QualityRule,
 )
 from small_stream_research_tool.models.quality_control_errors import QualityControlPersistenceError
+from small_stream_research_tool.models.reference_comparison import snapshot_reference_id
 
 _RULE_COLUMNS = (
     "rule_id,rule_code,target_type,dictionary_id,rule_type,default_severity,"
@@ -50,7 +51,9 @@ def _scope_where(scope):
     if type(scope) is not QCCheckedScope:
         raise QualityControlPersistenceError()
     types = (
-        ("REQUIRED_VALUE_MISSING",)
+        ("REFERENCE_VALUE_MISMATCH",)
+        if scope.reference_value_id is not None
+        else ("REQUIRED_VALUE_MISSING",)
         if scope.characteristic_value_id is None
         else ("NEGATIVE_VALUE", "VALUE_OUT_OF_RANGE")
     )
@@ -128,16 +131,20 @@ class QualityControlRepository:
         return tuple(
             row[0]
             for row in self._execute(
-                "SELECT issue_id FROM data_quality_issue WHERE is_active=1 AND "
-                + where
-                + " ORDER BY issue_id",
+                "SELECT issue_id,rule_parameters_snapshot_json FROM data_quality_issue "
+                "WHERE is_active=1 AND " + where + " ORDER BY issue_id",
                 parameters,
             )
+            if scope.reference_value_id is None
+            or snapshot_reference_id(row[1]) == scope.reference_value_id
         )
 
     def deactivate_issue(self, issue_id: int, scope: QCCheckedScope) -> None:
         """검증된 ID와 전체 scope가 모두 일치할 때 is_active만 1→0으로 변경한다."""
         where, parameters = _scope_where(scope)
+        if scope.reference_value_id is not None:
+            if issue_id not in self.list_active_ids_for_scope(scope):
+                raise QualityControlPersistenceError()
         count = self._execute(
             "UPDATE data_quality_issue SET is_active=0 WHERE issue_id=? AND is_active=1 AND "
             + where,

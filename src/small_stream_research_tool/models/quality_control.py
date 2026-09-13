@@ -97,6 +97,7 @@ class QCCheckedScope:
     import_sheet_id: int | None
     source_row: int | None
     source_column: int | None
+    reference_value_id: int | None = None
 
 
 @dataclass(frozen=True)
