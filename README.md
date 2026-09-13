@@ -17,6 +17,7 @@ Phase 4는 소하천 관리코드의 문자열 후보 생성·검증·원본/구
 Phase 5A는 정확한 별칭 기반 컬럼 매핑 draft와 사용자별 로컬 Workspace JSON을 제공한다.
 Phase 5B는 행별 관리코드 검증·기존 하천 조회·표시 정책을 적용한 Import Preview를 제공한다.
 Phase 6A는 사전 자료형에 따른 값 정규화와 행별 Import 저장 후보 준비를 제공한다.
+Phase 6B-1은 source/Import 출처·소하천·특성값의 SQLite 저장소 primitive를 제공한다.
 로그인 GUI·DB Import·QC 실행·업무 화면·분석은 아직 구현하지 않았다.
 
 ## 환경과 의존성
@@ -429,6 +430,75 @@ Phase 6B는 실제 쓰기 직전에 출처·사전·기존 하천 상태를 다�
 T1의 B commit 후 C 실패에 대한 recovery/idempotency 계약은 Phase 6B/6C 전에 확정하며
 이번 단계에서는 구현하지 않았다. 새 의존성은 없다.
 
+## Phase 6B-1 Import Persistence Foundation
+
+`repositories/import_persistence_repository.py`에 다음 6개 클래스를 제공한다.
+각 클래스는 기존처럼 `Repository(connection)`으로 같은 SQLite 연결을 전달받는다.
+
+| Repository | API |
+| --- | --- |
+| SourceFileRepository | create, get_by_id, find_by_hash |
+| ImportHistoryRepository | create, get_by_id, get_by_batch_code, update_status, list/count_by_status |
+| ImportSheetRepository | create, get_by_id, list/count_by_import_id |
+| ImportColumnMappingRepository | create, get_by_id, list/count_by_import_sheet_id |
+| SmallStreamRepository | create, create_prepared, get_by_stream_code, exists_by_stream_code, count |
+| CharacteristicValueRepository | create, create_prepared, get_by_id, list/count_by_import_id, list/count_by_stream_code, count_by_import_sheet_id, get_provenance |
+
+`create(**values)`의 키는 실제 migration 컬럼명이다. `original_path`, `file_extension`,
+`file_modified_at`, `schema_version_id`, `mapping_status`, `transform_rule`을 사용한다.
+자동 INTEGER PK는 DB가 발급하며, 생략한 값은 기존 DB DEFAULT/NULL/NOT NULL을 따른다.
+ID 조회는 없으면 None, 목록은 PK 순서의 list, count는 정수다. 동일 file_hash 등록을 거부하지
+않으며 `find_by_hash`는 비활성 포함 모든 일치 등록을 반환한다. None hash 조회는 빈 목록이다.
+batch_code는 정확히 조회하고 UNIQUE 위반을 전달한다. UUID·hash·시각을 자동 생성하지 않는다.
+
+쓰기에는 **호출자가 먼저 연 명시적 transaction이 필수**다. create/update는 BEGIN·COMMIT·
+ROLLBACK을 수행하지 않고, transaction이 없으면 `TransactionRequiredError`로 거부한다.
+여러 Repository에 같은 연결을 주고 기존 `database.connection.transaction(connection)`으로
+묶는다. `repository.transaction()`은 이 helper를 반환하는 기존 스타일의 명시적 편의 API다.
+호출자가 성공/실패 경계를 소유하며, 저장 예외가 발생한 업무는 호출자 경계에서 rollback한다.
+반환된 레코드는 아직 commit되지 않은 행일 수 있다. 연결 생성·종료도 Repository 책임이 아니다.
+
+`SmallStreamRepository.create_prepared(prepared_stream, timestamp=...)`와
+`CharacteristicValueRepository.create_prepared(prepared_value, stream_code=..., timestamp=...,
+import_id=..., import_sheet_id=..., mapping_id=..., reference_year=...)`는 Phase 6A 객체를 받아
+필드를 그대로 전달한다. timestamp는 호출자가 기존 `utc_now_text()`로 준비한다.
+신규 하천의 선택 core 값만 반영하고 기존 core UPDATE/UPSERT/REPLACE는 하지 않는다.
+특성값의 source_column_index는 DB 컬럼이 아니며 mapping_id를 통해 추적한다.
+
+Repository는 숫자·날짜 parsing, 단위환산, 민감 필드 선별, 관리코드 padding을 하지 않는다.
+`create`는 검증된 값을 받는 하위 primitive이며 Phase 6A 검증을 대체하지 않는다.
+typed value exactly-one은 기존 DB CHECK로도 거부된다. 사전 자료형 일치와 Excel 1-based
+위치·매핑/시트/Import의 교차 소속 검증은 호출 Service가 책임진다. SQLite affinity를
+자료형 검증기로 간주하지 않는다. FK는 기존 `connect_database`에서 활성화한다.
+
+Import history의 6개 status는 DB CHECK를 따른다. `update_status(import_id, status, **changes)`는
+finished_at, 행 집계, error_code/error_message만 추가 갱신할 수 있으며 생략 필드는 유지한다.
+명시적 None은 NULL로 기록한다. 허용 상태 사이의 업무 전이를 제한하거나 완료 시각을 만들지 않는다.
+settings_json은 opaque TEXT로 보존하며 임의 설정 구조를 정의하거나 credential 저장에 사용하지 않는다.
+
+DB mapping_status/mapping_method는 NOT NULL TEXT이며 닫힌 enum CHECK가 없다.
+설계의 MAPPED/IGNORED/AMBIGUOUS 등은 예시로, Draft의 AUTO_MAPPED/DO_NOT_MAP/NEEDS_REVIEW와
+동일 목록이 아니다. 이번 primitive는 전달된 문자열을 그대로 보존하고 자동 adapter를 만들지 않는다.
+Phase 6B-2에서 최종 저장 표현과 필요한 명시적 adapter를 정한다. dictionary_id=NULL인
+UNMAPPED/DO_NOT_MAP metadata도 저장 가능하며 원본 셀 전체를 저장하지 않는다.
+
+`get_provenance`는 특성값에 명시적으로 저장된 mapping/sheet/import FK와 이력의 source_file을
+불변 묶음으로 조회한다. NULL 참조를 추정하거나 서로 다른 Import의 FK를 수정하지 않는다.
+복수 SELECT의 일관된 snapshot이 필요하면 호출자가 읽기 transaction도 관리한다.
+특성값 기본값은 DB의 IMPORT / UNREVIEWED / is_representative=0 / is_active=1이다.
+원시 create에 명시한 상태·플래그는 전달하지만 현재 사용값 지정 workflow는 제공하지 않는다.
+기존 대표값·stream_characteristic·QC·record_history를 자동 변경하지 않으며 삭제 API도 없다.
+
+조회 모델 6개는 실제 schema 컬럼에 대응하는 frozen dataclass이며 Boolean은 bool로 반환한다.
+경로·settings_json·error_message·원본/typed 값 등은 repr에서 제외한다. 레코드 전체를 일반
+로그/Export로 직렬화하지 않는다. SQLite error code로 PK/UNIQUE, FK, 기타 제약을 구분하고
+일반 SQLite 접근 오류도 고정 메시지의 PersistenceError 계열로 변환한다. 원문 오류를 출력하지 않는다.
+
+실제 Excel Import orchestration A→B→C는 Phase 6B-2, recovery는 Phase 6C에 남겨둔다.
+source_file 참조 확인은 설계에 있지만 등록을 A에 포함할지 앞 단계에 둘지는 명시되지 않았다.
+이 배치와 T1 recovery/idempotency, settings snapshot, 매핑 상태 표현, 민감 필드·단위 확인 계약은
+실제 실행 Service 구현 전에 확정한다. 새 schema/migration/의존성은 없다.
+
 ## 테스트와 코드 검사
 
 설치 후 저장소 루트에서 실행한다.
@@ -458,6 +528,8 @@ Preview 테스트는 synthetic 사전·임시 DB에서 코드 선택·중복 sem
 Workspace 재생성과 SQLite authorizer를 통한 SELECT-only/commit 부재를 검증한다.
 Preparation 테스트는 자료형 변환 경계·exactly-one·신규/기존 core 분리·정책 제외·결측·
 원본 추적·결정성·Workspace 미변경과 SELECT-only/전체 DB 미변경을 검증한다.
+Persistence 테스트는 tmp SQLite에서 6개 모델/schema 대조, 저장·출처 조회, FK/중복/제약 오류,
+개별 rollback·공유 transaction의 원자성, 내부 commit 부재와 repr/오류 비노출을 검증한다.
 실제 연구자료, 운영 DB, GUI 환경에 의존하지 않는다.
 
 ## 구조
@@ -500,6 +572,8 @@ src/small_stream_research_tool/
   models/import_preparation.py / import_preparation_errors.py 저장 후보·준비 오류
   services/import_preparation_service.py 행별 저장 적격성·core/특성 분리·summary
   services/value_normalization_service.py I/O 없는 자료형 변환
+  models/import_persistence.py / import_persistence_errors.py DB 조회 모델·안전한 저장소 오류
+  repositories/import_persistence_repository.py Import 6개 저장소·Prepared 전달·출처 조회
 tests/
   unit/                          설정·로깅
   integration/                   시작점·SQLite 제약·migration 검증
