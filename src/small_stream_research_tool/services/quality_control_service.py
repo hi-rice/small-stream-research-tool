@@ -5,9 +5,12 @@ import math
 from small_stream_research_tool.database.connection import read_transaction, transaction
 from small_stream_research_tool.models.import_preparation import ImportFieldPolicy
 from small_stream_research_tool.models.quality_control import (
+    QCCheckedScope,
     QCFinding,
+    QCSeverityCounts,
     QualityControlRequest,
     QualityControlResult,
+    QualityRecheckResult,
     RequiredImportTarget,
 )
 from small_stream_research_tool.models.quality_control_errors import (
@@ -93,7 +96,7 @@ class QualityControlService:
         _require(item is not None and item.is_active and item.deprecated_version_id is None)
         return item
 
-    def _evaluate(self, request, policy):
+    def _evaluate(self, request, policy, *, checked_scopes=None, rule_ids=None):
         _require(type(request) is QualityControlRequest and type(policy) is ImportFieldPolicy)
         _require(
             type(request.characteristic_value_ids) is tuple
@@ -108,7 +111,16 @@ class QualityControlService:
         _require(len(set(request.required_targets)) == len(request.required_targets))
         rules = {}
         # 활성 규칙 정의의 오류는 자료 오류 issue로 바꾸지 않고 실행 자체를 거부한다.
-        for rule in self._repository.list_enabled_rules():
+        if rule_ids is None:
+            selected_rules = self._repository.list_enabled_rules()
+        else:
+            _require(type(rule_ids) is tuple and bool(rule_ids))
+            _require(all(_id(i) for i in rule_ids) and len(set(rule_ids)) == len(rule_ids))
+            selected_rules = tuple(self._repository.get_rule(i) for i in rule_ids)
+            _require(all(r is not None for r in selected_rules))
+        for rule in selected_rules:
+            if not rule.is_enabled:
+                continue
             try:
                 item = self._item(rule.dictionary_id)
             except QualityControlError:
@@ -142,6 +154,19 @@ class QualityControlService:
                 )
             )
             for compiled in applicable:
+                if checked_scopes is not None:
+                    checked_scopes.append(
+                        QCCheckedScope(
+                            compiled.rule.rule_id,
+                            value.characteristic_value_id,
+                            value.stream_code,
+                            item.dictionary_id,
+                            value.import_id,
+                            value.import_sheet_id,
+                            value.source_row,
+                            column,
+                        )
+                    )
                 if compiled.violated(number=number):
                     findings.append(
                         self._finding(
@@ -168,6 +193,19 @@ class QualityControlService:
                 target.stream_code, target.dictionary_id, target.import_id
             )
             for compiled in rules.get(item.dictionary_id, ()):
+                if compiled.rule.rule_type == "REQUIRED" and checked_scopes is not None:
+                    checked_scopes.append(
+                        QCCheckedScope(
+                            compiled.rule.rule_id,
+                            None,
+                            target.stream_code,
+                            item.dictionary_id,
+                            target.import_id,
+                            None,
+                            None,
+                            None,
+                        )
+                    )
                 if compiled.rule.rule_type == "REQUIRED" and compiled.violated(present=present):
                     findings.append(
                         self._finding(
@@ -182,6 +220,65 @@ class QualityControlService:
                         )
                     )
         return tuple(findings)
+
+    def recheck(
+        self,
+        request: QualityControlRequest,
+        *,
+        field_policy=None,
+        rule_ids: tuple[int, ...] | None = None,
+    ) -> QualityRecheckResult:
+        """실제 평가한 scope/rule만 reconcile한다. run()의 생성 전용 계약은 유지한다."""
+        try:
+            with transaction(self._connection):
+                scopes = []
+                findings = self._evaluate(
+                    request, field_policy, checked_scopes=scopes, rule_ids=rule_ids
+                )
+                old_scopes = {}
+                for scope in scopes:
+                    for issue_id in self._repository.list_active_ids_for_scope(scope):
+                        old_scopes[issue_id] = scope
+                kept, pending = set(), []
+                for finding in findings:
+                    matches = self._repository.list_active_identical_ids(finding)
+                    if matches:
+                        _require(set(matches) <= old_scopes.keys())
+                        kept.update(matches)
+                    else:
+                        pending.append(finding)
+                deactivated = tuple(sorted(old_scopes.keys() - kept))
+                timestamp = utc_now_text()
+                created = tuple(
+                    self._repository.create_issue(f, timestamp=timestamp) for f in pending
+                )
+                for issue_id in deactivated:
+                    self._repository.deactivate_issue(issue_id, old_scopes[issue_id])
+                # 요청한 stream들의 현재 active 집계: 미검사/disabled 규칙의 기존 issue도 포함한다.
+                streams = {t.stream_code for t in request.required_targets}
+                streams.update(
+                    self._values.get_by_id(i).stream_code for i in request.characteristic_value_ids
+                )
+                counts = [self._repository.active_severity_counts(s) for s in sorted(streams)]
+                status = QCSeverityCounts(
+                    sum(c.error for c in counts),
+                    sum(c.warning for c in counts),
+                    sum(c.info for c in counts),
+                ).status
+                result = QualityRecheckResult(
+                    len(scopes),
+                    len(findings),
+                    tuple(sorted(kept)),
+                    created,
+                    deactivated,
+                    status,
+                    utc_now_text(),
+                )
+            return result
+        except QualityControlError:
+            raise
+        except Exception:
+            raise QualityControlPersistenceError() from None
 
     def _provenance(self, value):
         if value.import_id is not None:

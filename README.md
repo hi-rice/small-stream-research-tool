@@ -628,7 +628,7 @@ issue로 보존한다. 평가·dedup·모든 issue INSERT는 하나의 BEGIN IMM
 Repository는 활성 규칙/issue 조회와 stream별 active severity 개수도 제공한다.
 active ERROR가 있으면 ERROR, WARNING/INFO만 있으면 NEEDS_REVIEW, 없으면 NORMAL이다.
 review_status와 독립적인 집계이며 NORMAL은 검사 실행 완료를 증명하지 않는다.
-기존 issue의 해소 반영·자동 비활성화/reconciliation은 Phase 7B-2에 남긴다.
+`run()`은 생성 전용 계약을 유지한다. 해소 반영은 아래 Phase 7B-2 `recheck()`를 사용한다.
 관리코드·parsing QC 중복 구현, reference/statistical/unit/GIS QC, 자동 보정·DELETE,
 stream/value/대표값/현재 사용값 변경 및 review workflow는 포함하지 않는다.
 
@@ -722,3 +722,32 @@ tests/
 기존 `.gitignore` 정책을 유지하며 synthetic fixture도 개별 검토 후에만 예외를 둔다.
 UI PNG는 추적할 수 있으나 분석 출력은 `exports/` 같은 제외 경로에 저장한다.
 원본 자료를 fixture라는 이름으로 복사하지 않는다.
+
+
+## Phase 7B-2 QC Recheck / Issue Reconciliation
+
+`QualityControlService.recheck(request, field_policy=policy, rule_ids=None)`는 기존
+`QualityControlRequest`의 명시적 값 ID 및 `RequiredImportTarget`만 재검사한다.
+선택적인 `rule_ids`는 중복 없는 양의 정수 tuple이며 생략하면 활성 규칙을 사용한다.
+빈 tuple·없는 규칙 ID는 오류다. disabled 규칙이나 정책상 제외된 항목은 검사하지 않으며,
+이를 문제 해소로 간주하지 않는다. 삭제된 규칙의 issue 정리는 제공하지 않는다.
+
+기존 평가기와 dedup 키를 재사용한다. 동일한 활성 문제는 ID·검토 정보·snapshot을 유지하고,
+실제로 검사한 scope/rule에서 사라진 문제만 `is_active=0`으로 보존한다.
+재발은 새 행으로 기록하며 inactive 행을 재활성화하거나 DELETE하지 않는다.
+규칙 version·severity·parameters가 바뀌어 dedup 키가 달라지면 기존 snapshot을 보존하고
+검사 범위 내 이전 issue를 비활성화한 뒤 현재 정의의 새 issue를 남긴다.
+
+내부 `QCCheckedScope`는 rule·값·소하천·사전·Import·시트·행·컬럼을 구분한다.
+REQUIRED는 값 ID 없이 소하천/사전/Import 단위로 검사하며 다른 Import나 보정값은
+해당 Import의 필수값 존재를 대신하지 않는다. 다른 scope와 Import parsing issue는 유지한다.
+`BEGIN IMMEDIATE` 안에서 평가·조회·생성·비활성화·상태 집계를 수행하고 실패 시 모두 rollback한다.
+연구값·대표값·참조 캐시·보정·단위변환은 변경하지 않는다. 현재 사용값/보정 업무는 후속 단계다.
+
+불변 `QualityRecheckResult`는 `checked_count`(실제 평가한 규칙/대상 조합 수),
+`finding_count`, `kept_issue_ids`, `created_issue_ids`, `deactivated_issue_ids`,
+`qc_status`, `completed_at`(UTC)을 반환한다. `qc_status`는 요청 대상 소하천들의
+활성 issue 전체를 집계한 상태로, 미검사/disabled 규칙의 기존 issue도 포함한다.
+활성 ERROR는 ERROR, WARNING/INFO만 있으면 NEEDS_REVIEW, 없으면 NORMAL이다.
+inactive issue와 review_status는 이 판정에 영향을 주지 않는다. 검사 수 0이나 NORMAL이
+전체 규칙 검사를 증명하지는 않는다. schema 변경 없이 구현하며 별도 해소 시각 컬럼은 없다.
