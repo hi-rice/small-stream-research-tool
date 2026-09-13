@@ -98,6 +98,7 @@ class QCCheckedScope:
     source_row: int | None
     source_column: int | None
     reference_value_id: int | None = None
+    unit_rule_type: str | None = None
 
 
 @dataclass(frozen=True)

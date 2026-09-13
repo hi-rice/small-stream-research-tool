@@ -128,6 +128,14 @@ class DictionaryRepository:
             (from_unit_id, to_unit_id, formula_type),
         )
 
+    def list_active_direct_conversions(self, from_unit_id, to_unit_id) -> list[UnitConversion]:
+        """식 유형을 임의 선택하지 않고 해당 방향의 모든 활성 후보를 반환한다."""
+        return self._select(
+            UnitConversion,
+            "from_unit_id=? AND to_unit_id=? AND is_active=1",
+            (from_unit_id, to_unit_id),
+        )
+
     def create_item(self, **values) -> DataDictionaryItem:
         return self._insert(DataDictionaryItem, values)
 

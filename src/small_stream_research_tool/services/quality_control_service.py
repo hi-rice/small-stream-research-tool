@@ -35,6 +35,13 @@ from small_stream_research_tool.services.quality_rule_evaluator import compile_r
 from small_stream_research_tool.services.reference_comparison_evaluator import (
     compile_reference_rule,
 )
+from small_stream_research_tool.services.unit_quality_evaluator import (
+    UNIT_MESSAGES,
+    compile_unit_rule,
+    direct_conversion_available,
+    unit_issue_type,
+    unit_snapshot,
+)
 from small_stream_research_tool.utils.timestamps import utc_now_text
 
 _MESSAGES = {
@@ -320,6 +327,102 @@ class QualityControlService:
                     result = self._reconcile(
                         (scope,), (finding,) if mismatch else (), {target.stream_code}
                     )
+            return result
+        except QualityControlError:
+            raise
+        except Exception:
+            raise QualityControlPersistenceError() from None
+
+    def check_unit(self, characteristic_value_id, rule_id, *, field_policy=None):
+        """명시한 값/규칙의 단위만 검사한다. 값이나 단위를 변환하지 않는다."""
+        try:
+            with transaction(self._connection):
+                _require(type(field_policy) is ImportFieldPolicy)
+                _require(_id(characteristic_value_id) and _id(rule_id))
+                value = self._values.get_by_id(characteristic_value_id)
+                _require(value is not None and value.is_active)
+                item = self._item(value.dictionary_id)
+                _require(item.internal_name not in field_policy.excluded_internal_names)
+                rule = self._repository.get_rule(rule_id)
+                _require(rule is not None)
+                parameters = compile_unit_rule(rule, item)
+                if not rule.is_enabled:
+                    result = self._reconcile((), (), {value.stream_code})
+                else:
+                    # 명시적 Unit rule에는 expected metadata가 반드시 있어야 한다.
+                    if item.unit_id is None:
+                        raise QualityRuleConfigurationError()
+                    for unit_id in (item.unit_id, value.unit_id):
+                        if unit_id is not None:
+                            unit = self._dictionary.get_unit(unit_id)
+                            if unit is None or not unit.is_active:
+                                raise QualityRuleConfigurationError()
+                    typed = (
+                        value.value_number,
+                        value.value_integer,
+                        value.value_text,
+                        value.value_date,
+                    )
+                    _require(sum(v is not None for v in typed) == 1)
+                    number = value.value_number if item.data_type == "REAL" else value.value_integer
+                    _require(
+                        (
+                            item.data_type == "REAL"
+                            and type(number) is float
+                            and math.isfinite(number)
+                        )
+                        or (
+                            item.data_type == "INTEGER"
+                            and type(number) is int
+                            and -(2**63) <= number < 2**63
+                        )
+                    )
+                    column = self._provenance(value)
+                    available = None
+                    if (
+                        rule.rule_type == "UNIT_CONVERSION_MISSING"
+                        and value.unit_id is not None
+                        and value.unit_id != item.unit_id
+                    ):
+                        candidates = DictionaryRepository(
+                            self._connection
+                        ).list_active_direct_conversions(value.unit_id, item.unit_id)
+                        available = direct_conversion_available(candidates)
+                    issue_type = unit_issue_type(
+                        rule.rule_type, item.unit_id, value.unit_id, available
+                    )
+                    scope = QCCheckedScope(
+                        rule_id,
+                        characteristic_value_id,
+                        value.stream_code,
+                        value.dictionary_id,
+                        value.import_id,
+                        value.import_sheet_id,
+                        value.source_row,
+                        column,
+                        unit_rule_type=rule.rule_type,
+                    )
+                    findings = ()
+                    if issue_type is not None:
+                        findings = (
+                            QCFinding(
+                                rule_id,
+                                rule.rule_code,
+                                rule.rule_version,
+                                unit_snapshot(parameters, item.unit_id, value.unit_id),
+                                characteristic_value_id,
+                                value.stream_code,
+                                value.dictionary_id,
+                                value.import_id,
+                                value.import_sheet_id,
+                                value.source_row,
+                                column,
+                                issue_type,
+                                rule.default_severity,
+                                UNIT_MESSAGES[issue_type],
+                            ),
+                        )
+                    result = self._reconcile((scope,), findings, {value.stream_code})
             return result
         except QualityControlError:
             raise

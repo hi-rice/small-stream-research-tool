@@ -821,3 +821,63 @@ B를 선택했다는 이유만으로 A와의 문제를 해소하지 않는다. �
 기존 오류 계약을 유지한다. 활성 reference 규칙이 함께 등록되어 있다면 일반 재검사는
 `recheck(..., rule_ids=(일반_규칙_ID, ...))`로 범위를 명시하고 reference 비교는 별도 API로 호출한다.
 통합 batch orchestration, 기준자료 선택 UI, 과거 기준자료 비교는 이번 범위가 아니다.
+
+
+## Phase 7C-2 Unit QC
+
+Unit QC는 단위가 분석·비교에 적합한지 연구자에게 확인하도록 알리는 기능이다.
+값이 틀렸다고 확정하거나 자동 환산하지 않는다. 기대 단위의 유일한 source-of-truth는
+`data_dictionary.unit_id`, 실제 단위는 `characteristic_value.unit_id`다.
+단위의 PK로 비교하며 이름·기호·dimension을 추론하지 않는다. `original_unit`은 출처 문자열로
+그대로 보존하고, 현재 단위 identity나 매핑 입력으로 사용하지 않는다.
+
+`QualityControlService.check_unit(characteristic_value_id, rule_id, field_policy=policy)`는
+명시한 활성 값과 규칙 하나를 검사하고 기존 불변 `QualityRecheckResult`를 반환한다.
+활성 FLEX 사전의 INTEGER/REAL만 지원한다. TEXT/DATE/DATETIME은 configuration error다.
+규칙은 `target_type=CHARACTERISTIC_VALUE`이고 해당 dictionary_id에 연결되어야 한다.
+parameters_json은 NULL 또는 빈 객체만 허용한다. expected unit을 규칙에 중복 저장하지 않는다.
+Disabled 규칙은 검사 수 0으로 기존 issue를 보존한다. 일반 QC API의 기존 계약은 유지하므로
+Unit 규칙은 이 API로 호출하고, 일반 재검사는 `rule_ids`로 일반 규칙을 명시한다.
+
+- `UNIT_MATCH`: expected/actual ID가 같으면 Finding 없음, 다르면 `UNIT_MISMATCH`.
+  expected가 있고 actual이 NULL이면 `UNIT_MISSING`.
+- `UNIT_CONVERSION_MISSING`: 두 ID가 다를 때 직접 등록된 actual→expected 활성 변환을
+  확인한다. 없으면 같은 이름의 issue를 생성한다. 같으면 변환이 필요 없으므로 Finding 없음.
+  actual이 NULL이면 방향을 구성할 수 없어 configuration error이며 UNIT_MISSING을 대신 생성하지 않는다.
+- 명시적 Unit 규칙에는 expected metadata가 필수다. expected가 NULL이면 actual 유무에
+  관계없이 configuration error다. 단위가 필요 없는 항목에 규칙을 임의 등록하지 않는다.
+- 참조된 expected/actual 단위가 없거나 비활성이면 configuration error다. 자동 교체하지 않는다.
+- Severity는 각 rule.default_severity를 그대로 사용한다. 운영 규칙 seed는 생성하지 않는다.
+
+변환 조회는 기존 DictionaryRepository를 확장해 방향별 모든 활성 후보를 확인한다.
+실제 UNIQUE는 `(from_unit_id, to_unit_id, formula_type)`이므로 서로 다른 식 유형의 중복은
+가능하다. 활성 후보가 둘 이상이면 ambiguity configuration error다. 하나뿐이어도 현재
+지원하는 LINEAR가 아니거나 factor/offset이 유한한 숫자가 아니면 configuration error다.
+비활성 후보는 제외하여 후보가 없으면 conversion-missing으로 처리한다.
+NOT NULL 제약은 factor/offset 누락을 막는다. factor/offset은 유효성만 확인하며 실행하지 않는다.
+역방향 추론·중간 단위 chain 탐색·dimension 추론은 하지 않는다.
+UNIT_MATCH만 실행하면 변환 조회나 conversion-missing issue 생성을 수행하지 않는다.
+Phase 7C-1 Reference Comparison은 여전히 단위 불일치를 거부하며 자동 변환하지 않는다.
+
+기존 QCFinding과 target provenance를 재사용하고 고정 message만 제공한다.
+issue.original_value/compare_value는 NULL이며 raw 단위명·기호·원본값을 추가하지 않는다.
+규칙 설정과 실행 당시 단위 ID는 분리한 canonical snapshot에 남긴다:
+
+```json
+{"format":"unit_qc_v1","rule_parameters":null,"execution":{"actual_unit_id":2,"expected_unit_id":1}}
+```
+
+동일 rule/value/단위 쌍과 snapshot이면 기존 issue를 유지한다. 같은 값의 actual 단위나 사전의
+expected 단위가 외부의 명시적 변경으로 바뀌면 이전 pair와 다른 issue로 식별한다.
+검사 범위는 해당 rule/value/출처/Unit 검사 종류다. 그 범위의 이전 pair 문제는 비활성화하고
+현재 문제를 새 행으로 남긴다. QC 자체는 단위 metadata를 수정하지 않는다.
+해소 후 재발은 새 행으로 기록하며 inactive 재활성화·DELETE·review 정보 덮어쓰기는 없다.
+변환 규칙 등록 후 재검사는 conversion-missing을 해소하지만 별도 UNIT_MATCH issue는 유지한다.
+다른 규칙·값·소하천·사전·Reference Comparison issue는 변경하지 않는다.
+
+검증·판정·dedup·저장·비활성화·상태 집계는 하나의 BEGIN IMMEDIATE에서 수행한다.
+실패하면 전체 rollback하고 내부 SQL/오류·원본값·단위명·경로·JSON은 오류 메시지에 노출하지 않는다.
+현재 상태는 대상 소하천의 활성 issue 전체 집계이며 검사 수와 별개다.
+Schema/migration/dependency 추가, 원본/단위/대표값/캐시 수정, Import 매핑 변경은 없다.
+단위 pair ID snapshot은 전용 FK나 단위 정의 전체 snapshot이 아니며,
+실제 보정·승인된 환산·통합 batch orchestration은 후속 범위다.

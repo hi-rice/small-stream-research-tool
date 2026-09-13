@@ -51,7 +51,11 @@ def _scope_where(scope):
     if type(scope) is not QCCheckedScope:
         raise QualityControlPersistenceError()
     types = (
-        ("REFERENCE_VALUE_MISMATCH",)
+        ("UNIT_MISMATCH", "UNIT_MISSING")
+        if scope.unit_rule_type == "UNIT_MATCH"
+        else ("UNIT_CONVERSION_MISSING",)
+        if scope.unit_rule_type == "UNIT_CONVERSION_MISSING"
+        else ("REFERENCE_VALUE_MISMATCH",)
         if scope.reference_value_id is not None
         else ("REQUIRED_VALUE_MISSING",)
         if scope.characteristic_value_id is None
