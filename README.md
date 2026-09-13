@@ -18,7 +18,8 @@ Phase 5A는 정확한 별칭 기반 컬럼 매핑 draft와 사용자별 로컬 W
 Phase 5B는 행별 관리코드 검증·기존 하천 조회·표시 정책을 적용한 Import Preview를 제공한다.
 Phase 6A는 사전 자료형에 따른 값 정규화와 행별 Import 저장 후보 준비를 제공한다.
 Phase 6B-1은 source/Import 출처·소하천·특성값의 SQLite 저장소 primitive를 제공한다.
-로그인 GUI·DB Import·QC 실행·업무 화면·분석은 아직 구현하지 않았다.
+Phase 6B-2는 단일 시트 Prepared 결과의 실제 DB Import Execution을 제공한다.
+로그인 GUI·Import 화면·QC 실행·업무 화면·분석은 아직 구현하지 않았다.
 
 ## 환경과 의존성
 
@@ -494,10 +495,64 @@ UNMAPPED/DO_NOT_MAP metadata도 저장 가능하며 원본 셀 전체를 저장�
 로그/Export로 직렬화하지 않는다. SQLite error code로 PK/UNIQUE, FK, 기타 제약을 구분하고
 일반 SQLite 접근 오류도 고정 메시지의 PersistenceError 계열로 변환한다. 원문 오류를 출력하지 않는다.
 
-실제 Excel Import orchestration A→B→C는 Phase 6B-2, recovery는 Phase 6C에 남겨둔다.
-source_file 참조 확인은 설계에 있지만 등록을 A에 포함할지 앞 단계에 둘지는 명시되지 않았다.
-이 배치와 T1 recovery/idempotency, settings snapshot, 매핑 상태 표현, 민감 필드·단위 확인 계약은
-실제 실행 Service 구현 전에 확정한다. 새 schema/migration/의존성은 없다.
+저장소는 Phase 6B-2 실행 Service에서 재사용한다. 새 schema/migration/의존성은 없다.
+
+## Phase 6B-2 Import Execution
+
+`ImportExecutionService(connection).execute(request, field_policy=policy)`는 유휴 연결과
+`ImportExecutionRequest`를 받는다. 입력은 Phase 6A `ImportPreparationResult`, 매핑 draft tuple,
+호출자가 확인한 `SourceFileSnapshot`·`ImportSheetSnapshot`, 현재 사용자 ID다.
+원본 Excel을 다시 읽거나 filesystem metadata를 조회하지 않는다. source의 실제 schema 필수값은
+file_name·original_path이며 hash 등 선택 필드는 미제공 시 NULL을 보존한다.
+sheet_index와 source row/column은 기존 Reader와 동일하게 1-based다.
+
+명시적 `ImportFieldPolicy`가 필수이며 None 또는 정책 생략은 쓰기 없이 거부한다.
+운영 민감 internal_name seed는 아직 확정되지 않았다. 호출자가 확인한 정책을 전달해야 하며,
+synthetic test의 명시적 empty policy를 운영 기본값으로 간주하지 않는다.
+Preflight에서 전체 행·사용자·사전·출처·매핑을 확인한다. BLOCKED가 하나라도 있거나 READY가
+0개이면 실행하지 않는다. EXCLUDED의 payload는 저장하지 않는다. 저장 후보의 민감 internal_name,
+자료형·단위 참조는 B에서도 다시 확인하며 정책 위반 후보를 조용히 누락시키지 않고 거부한다.
+
+- A: 매 실행 source_file을 새로 생성하고 RUNNING import_history와 함께 commit한다.
+  같은 hash는 허용한다. batch_code 미제공 시 UUID를 한 번 생성하고, 기존 batch는 상태와 관계없이
+  재진입을 거부한다. A가 실패하면 source도 rollback하고 B/C를 시작하지 않는다.
+- B: sheet·mapping·READY 신규 하천·특성값을 한 transaction으로 저장한다.
+  어떤 행/저장 단계든 실패하면 sheet와 mapping까지 전부 rollback한다. 부분 Import는 없다.
+  CREATE_STREAM은 core만 있어도 가능하며 기존 코드 충돌은 실패한다. USE_EXISTING_STREAM은
+  B에서 존재 여부를 확인하고 기존 하천명/core를 변경하지 않는다.
+- C: 별도 transaction에서 SUCCESS/FAILED·UTC 종료시각·지원되는 실제 counts를 기록한다.
+  B 실패 진단은 고정 코드 `IMPORT_TRANSACTION_FAILED`와 고정 메시지만 저장한다.
+  B commit 후 C 실패(T1)는 RUNNING 이력과 B 데이터를 남기고 `ImportFinalizeError`를 반환한다.
+  이 예외의 `recovery_required` 및 result의 `data_committed`로 B 실패와 구분한다.
+  자동 rollback·repair·retry는 없으며 recovery는 Phase 6C에 남겨둔다.
+
+`ImportExecutionResult`는 불변이며 import/source ID, batch, 상태, B commit 여부, READY/EXCLUDED,
+생성/재사용 행 수·특성값 수, 시작/종료시각을 제공한다. Preparation summary는 신뢰하지 않고
+실제 행과 성공한 B 작업에서 계산한다. B rollback 시 생성/재사용/특성값 수는 모두 0이다.
+DB total_rows는 READY+EXCLUDED, accepted_rows는 commit된 READY 수다. 성공 rejected_rows=0,
+B 실패 accepted_rows=0·rejected_rows=NULL이다. QC 미실행이므로 warning_rows=NULL이다.
+EXCLUDED를 rejected로 분류하지 않는다. schema에는 제외/특성값 개수 컬럼이 없어 해당 수는
+result에서 제공하고, 영구 특성값 수는 import_id로 조회한다. T1의 history accepted_rows는 NULL이며
+commit된 sheet의 accepted_rows와 실제 저장 자료가 복구 판단 근거다. sheet SUCCESS는 B commit
+시점의 자료 저장 완료만 뜻하며 history 종료 성공이나 QC 통과를 뜻하지 않는다.
+
+mapping_status는 draft 상태를 그대로 보존한다. 열린 TEXT이지만 NOT NULL인 mapping_method는
+AUTO_MAPPED→AUTO, USER_MAPPED→USER, UNMAPPED/DO_NOT_MAP→NONE으로 저장한다.
+NEEDS_REVIEW는 기존 명확한 AUTO_ALIAS/USER 방법을 보존한다. dictionary 없는 매핑 metadata는
+저장하되 값을 만들지 않는다. user_confirmed는 USER_MAPPED/DO_NOT_MAP에서만 참이다.
+현재 draft에 없는 source_unit/transform_rule은 추측하지 않고 NULL로 둔다. 특성값의 original_unit과
+unit_id는 Prepared 값을 그대로 저장하며 재정규화·단위변환하지 않는다.
+source column별 mapping_id를 현재 import/sheet/dictionary와 대조해 연결한다.
+새 값은 DB default인 is_representative=0·quality_status=UNREVIEWED·is_active=1을 유지한다.
+현재 사용값·stream_characteristic·QC·record_history는 변경하지 않는다.
+
+활성 사용자만 허용하고 자동 계정 생성은 없다. dictionary_version_id는 호출자가 Preparation/
+Mapping에 사용한 버전을 전달하면 존재 확인 후 저장하며, 미제공 시 현재 버전을 추측하지 않는다.
+기존 Prepared 모델에는 버전 snapshot이 없어 사용 버전의 일치 보장은 호출자 계약이다.
+schema_version_id는 현재 DB의 검증된 migration 기록에서 실제 PK를 읽는다.
+settings_json은 sheet/header/data 위치와 dictionary_version_id만 whitelist로 결정성 있게 저장한다.
+원본값·전체 경로·settings 전체·계정정보를 로그에 출력하지 않으며 입력/result repr에서도 숨긴다.
+이 단계는 단일 시트 실행이며 multi-sheet orchestration이나 recovery를 구현하지 않는다.
 
 ## 테스트와 코드 검사
 

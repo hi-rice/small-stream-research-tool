@@ -65,6 +65,16 @@ def get_schema_version(connection: sqlite3.Connection) -> int:
     return len(_history(connection))
 
 
+def get_schema_version_id(connection: sqlite3.Connection) -> int | None:
+    """검증된 최신 migration의 실제 PK를 반환한다. 버전 번호를 PK로 추측하지 않는다."""
+    history = _history(connection)
+    if not history:
+        return None
+    return connection.execute(
+        "SELECT schema_version_id FROM schema_version WHERE version=?", (history[-1][0],)
+    ).fetchone()[0]
+
+
 def _execute_sql(connection: sqlite3.Connection, sql: str) -> None:
     # executescript()의 암묵적 COMMIT을 피한다. complete_statement는 문자열과
     # 주석 안의 세미콜론, 여러 문장, trigger 본문을 SQLite 문법으로 구분한다.
