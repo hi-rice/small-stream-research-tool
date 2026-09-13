@@ -26,6 +26,10 @@ from small_stream_research_tool.models.import_preparation import (
     PreparedCharacteristicValue,
     PreparedStreamData,
 )
+from small_stream_research_tool.models.import_recovery import (
+    RecoveryMappingEvidence,
+    RecoveryValueEvidence,
+)
 
 # 기존 DictionaryRepository처럼 모델과 SQL 식별자를 코드 내부에서만 고정한다.
 _TABLES = {
@@ -222,6 +226,16 @@ class ImportColumnMappingRepository(_ImportRepository):
     def count_by_import_sheet_id(self, import_sheet_id: int) -> int:
         return self._count("import_sheet_id=?", (import_sheet_id,))
 
+    def list_recovery_evidence(self, import_id: int) -> tuple[RecoveryMappingEvidence, ...]:
+        rows = self._execute(
+            "SELECT m.mapping_id,m.import_sheet_id,m.source_column_index,m.dictionary_id,"
+            "m.mapping_status,m.mapping_method,m.target_unit_id,m.user_confirmed "
+            "FROM import_column_mapping m JOIN import_sheet s "
+            "ON s.import_sheet_id=m.import_sheet_id WHERE s.import_id=? ORDER BY m.mapping_id",
+            (import_id,),
+        )
+        return tuple(RecoveryMappingEvidence(*row) for row in rows)
+
 
 class SmallStreamRepository(_ImportRepository):
     _model = SmallStreamRecord
@@ -320,6 +334,22 @@ class CharacteristicValueRepository(_ImportRepository):
 
     def count_by_import_sheet_id(self, import_sheet_id: int) -> int:
         return self._count("import_sheet_id=?", (import_sheet_id,))
+
+    def list_recovery_evidence(self, import_id: int) -> tuple[RecoveryValueEvidence, ...]:
+        # import_id뿐 아니라 sheet/mapping으로 들어오는 잘못된 교차 참조도 발견한다.
+        # 원본/typed 값은 SELECT하지 않는다. FK가 nullable이어도 LEFT JOIN으로 보존한다.
+        rows = self._execute(
+            "SELECT v.characteristic_value_id,v.import_id,v.import_sheet_id,v.mapping_id,"
+            "v.dictionary_id,v.source_row,v.source_type,v.unit_id "
+            "FROM characteristic_value v "
+            "LEFT JOIN import_sheet s ON s.import_sheet_id=v.import_sheet_id "
+            "LEFT JOIN import_column_mapping m ON m.mapping_id=v.mapping_id "
+            "LEFT JOIN import_sheet ms ON ms.import_sheet_id=m.import_sheet_id "
+            "WHERE v.import_id=? OR s.import_id=? OR ms.import_id=? "
+            "ORDER BY v.characteristic_value_id",
+            (import_id, import_id, import_id),
+        )
+        return tuple(RecoveryValueEvidence(*row) for row in rows)
 
     def get_provenance(self, characteristic_value_id: int) -> CharacteristicProvenance | None:
         value = self.get_by_id(characteristic_value_id)

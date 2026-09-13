@@ -30,6 +30,19 @@ def connect_database(db_path: str | Path | None = None) -> sqlite3.Connection:
 
 
 @contextmanager
+def read_transaction(connection: sqlite3.Connection) -> Iterator[None]:
+    """유휴 연결에서 여러 SELECT가 하나의 snapshot을 보도록 한다. 종료는 rollback이다."""
+    if connection.in_transaction:
+        raise ValueError("An active transaction already exists")
+    connection.execute("BEGIN")
+    try:
+        yield
+    finally:
+        if connection.in_transaction:
+            connection.execute("ROLLBACK")
+
+
+@contextmanager
 def transaction(connection: sqlite3.Connection) -> Iterator[None]:
     """중첩 transaction을 거부하고 예외 시 DDL·DML을 함께 rollback한다."""
     if connection.in_transaction:

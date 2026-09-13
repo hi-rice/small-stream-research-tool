@@ -19,6 +19,7 @@ Phase 5B는 행별 관리코드 검증·기존 하천 조회·표시 정책을 �
 Phase 6A는 사전 자료형에 따른 값 정규화와 행별 Import 저장 후보 준비를 제공한다.
 Phase 6B-1은 source/Import 출처·소하천·특성값의 SQLite 저장소 primitive를 제공한다.
 Phase 6B-2는 단일 시트 Prepared 결과의 실제 DB Import Execution을 제공한다.
+Phase 6C는 RUNNING Import의 근거 검사와 명시적 SUCCESS 종료 복구를 제공한다.
 로그인 GUI·Import 화면·QC 실행·업무 화면·분석은 아직 구현하지 않았다.
 
 ## 환경과 의존성
@@ -553,6 +554,39 @@ schema_version_id는 현재 DB의 검증된 migration 기록에서 실제 PK를 
 settings_json은 sheet/header/data 위치와 dictionary_version_id만 whitelist로 결정성 있게 저장한다.
 원본값·전체 경로·settings 전체·계정정보를 로그에 출력하지 않으며 입력/result repr에서도 숨긴다.
 이 단계는 단일 시트 실행이며 multi-sheet orchestration이나 recovery를 구현하지 않는다.
+
+## Phase 6C Import Recovery / Idempotency
+
+`ImportRecoveryService(connection).inspect(import_id)`는 읽기 transaction의 동일 snapshot에서
+상태와 import-owned artifact를 검사한다. `list_recovery_candidates()`는 시간 임계값 없이
+현재 RUNNING의 검사 결과를 반환한다. 두 API 모두 데이터를 변경하지 않는다.
+
+- `NO_PERSISTED_DATA`: sheet·mapping·관련 값이 없고 저장 개수 주장과 충돌하지 않는다.
+  `can_retry=True`는 검토 후보 표시다. 실행 중인 프로세스의 부재나 중단을 증명하지 않으며,
+  기존 batch의 재실행을 허가하지 않는다. 실제 재시도·새 batch 생성·FAILED 전환은 하지 않는다.
+- `COMMITTED_CONSISTENT`: 6B-2 snapshot과 단일 SUCCESS sheet, 행 개수, 매핑 상태/방법 및
+  값의 import/sheet/mapping·사전·단위·원본 행/열 연결이 일치한다. 명시적 성공 복구가 가능하다.
+- `INCONSISTENT`: sheet 수·저장 개수·출처 등 알려진 계약에 모순이 있다. 자동 변경하지 않는다.
+- `NOT_RECOVERABLE`: 지원하지 않는 상태/실행 metadata 또는 NULL mapping 등으로 근거가 부족하다.
+  NULL 자체를 DB 손상으로 단정하지 않으며 SUCCESS 변경을 거부한다.
+- `ALREADY_FINALIZED`: SUCCESS/FAILED/CANCELLED/ROLLED_BACK은 복구 대상이 아니다.
+
+특성값은 import_id뿐 아니라 해당 sheet/mapping으로 들어오는 교차 참조도 검사한다.
+값 원문·원본 헤더·파일 경로는 복구 projection에서 읽지 않는다. small_stream 개수나 생성 시각으로
+Import 귀속을 추정하지 않는다. core-only 신규 하천은 특성값 0개이며 매핑 0개도 기존 실행 API에서
+가능하므로, 단순한 값/매핑 유무로 실패를 판단하지 않는다.
+기존 schema/snapshot에 독립된 기대 mapping/value 개수가 없어 두 기대값은 None으로 반환한다.
+실제 개수와 distinct source row 수를 확인하고 accepted_rows 초과·중복 행/열/사전 연결을 거부한다.
+이 검사는 B 원자성과 sheet를 B에서만 생성한다는 계약에 의존한다. 별도의 manifest가 없으므로
+외부 조작에 의한 개별 값 누락까지 완전하게 증명하는 무결성 검사는 아니다.
+
+`recover_success(import_id)`만 BEGIN IMMEDIATE 안에서 상태와 근거를 다시 확인하여
+import_history의 SUCCESS·UTC finished_at·검증된 행 개수를 기록한다. 실패 시 해당 변경을 rollback한다.
+이미 SUCCESS이면 `changed=False`로 반환하고, 다른 완료 상태나 불충분한 근거는 안전한 오류로 거부한다.
+경쟁 호출은 잠금 후 재검사하여 의미 있는 갱신을 한 번만 수행한다. 불변 inspection/result에는
+고정 reason code·ID·개수·판정만 제공하고 raw 값·설정 전체·경로를 노출하지 않는다.
+source/sheet/mapping/stream/value·현재 사용값·QC·record_history는 생성/수정/삭제하지 않는다.
+새 DB status·schema·migration·의존성·자동 retry·cleanup·다중 시트 실행은 추가하지 않았다.
 
 ## 테스트와 코드 검사
 
