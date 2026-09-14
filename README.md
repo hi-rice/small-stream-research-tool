@@ -947,3 +947,27 @@ ID 입력 순서는 identity에 영향을 주지 않으며 행의 중복 숫자�
 운영 규칙 seed, 실제 연구자료·운영 DB 접근은 추가하지 않았다.
 Phase 7 전체 완료 판정은 이 개별 기능의 테스트 통과와 별도로 로드맵의 V1 규칙 선정 및
 전체 Gate 검토가 필요하다. 이번 작업에서 Phase 8 구현은 시작하지 않는다.
+
+
+## Phase 7 Final QC Gate / Phase 8 연계 계약
+
+QC engine foundation과 운영 연구 rule set은 구분한다. 현재 7종 규칙의 실행·issue 생성·
+재검사 기반을 제공하지만 실제 운영 rule set과 민감 항목 정책은 별도 검토·등록이 필요하다.
+Reference 후보인 하상경사·소하천 연장·유역면적·계획홍수량은 실제 seed가 아니다.
+
+Phase 8에서 새 current-use를 선택할 때는 **선택 대상 characteristic_value_id의 활성 issue**를
+기준으로 판단해야 한다. active ERROR는 차단하고, WARNING 또는 INFO는 사용자 명시적 확인 후
+선택 가능하다. 활성 issue가 없으면 QC 관점에서는 선택 가능하지만 값의 활성 상태 등 다른
+Phase 8 업무 검증은 별도로 수행한다. review_status 변경으로 ERROR 차단을 해제하지 않는다.
+통계 후보 INFO를 영구 선택 차단으로 해석하거나 기준자료/단위 불일치를 자동 보정하지 않는다.
+
+현재 `QualityControlRepository.list_active_issues(stream_code)`는 value ID와 severity를
+제공하므로 대상 ID로 필터링하여 이 판단이 가능하다. 소하천 aggregate는 다른 값의 issue도
+포함하므로 선택 차단에 그대로 사용하지 않는다. Phase 8에서는 필요 시 값별 active severity
+조회 API를 추가하고, 검사·사용자 확인·선택 변경·이력·캐시 갱신의 transaction 계약을 구현한다.
+현재 Gate는 current-use 변경 기능을 추가하지 않는다. NORMAL은 검사 완료 보증도 아니다.
+
+Generic 검사와 Reference/Unit/Statistical 검사는 명시적 API가 분리되어 있다.
+일반 재검사는 rule_ids를 명시하여 호출한다. 통합 자동 batch 실행이나 규칙 관리 GUI는
+제공하지 않는다. snapshot의 reference/population/단위 ID는 전용 FK가 아니며 당시 연구값을
+복원하는 저장소가 아니다. 이 제한과 운영 rule 등록은 후속 검토 항목으로 유지한다.

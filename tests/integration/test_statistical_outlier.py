@@ -666,3 +666,76 @@ def test_policy_exclusion(ctx):
             field_policy=ImportFieldPolicy(frozenset({"synthetic_integer"})),
         )
     assert not issues(ctx)
+
+
+def test_phase7_final_multi_issue_and_current_use_information_gate(ctx):
+    """실제 QC API 공존과 값별 정보 가용성. current-use 변경 서비스는 구현하지 않는다."""
+    from small_stream_research_tool.repositories.quality_control_repository import (
+        QualityControlRepository,
+    )
+
+    ids, actual = population(ctx)
+    target = ids[-1]
+    reference = ids[0]
+    expected = ctx.dictionary.create_unit("Gate expected", "gateE").unit_id
+    ctx.conn.execute(
+        "UPDATE data_dictionary SET unit_id=? WHERE dictionary_id=?",
+        (expected, ctx.items["INTEGER"].dictionary_id),
+    )
+    ref_rule = rule(ctx, "REFERENCE_COMPARE", "INTEGER", severity="WARNING")
+    unit_rule = rule(ctx, "UNIT_MATCH", "INTEGER", severity="WARNING")
+    statistical_rule = stat_rule(ctx)
+    error_rule = rule(ctx, "RANGE", "INTEGER", params='{"max":50}', severity="ERROR")
+    repository = QualityControlRepository(ctx.conn)
+
+    def target_severities(value_id):
+        return {
+            issue.severity
+            for issue in repository.list_active_issues(STREAM)
+            if issue.characteristic_value_id == value_id
+        }
+
+    ctx.service.compare_reference(target, reference, ref_rule, field_policy=POLICY)
+    ctx.service.check_unit(target, unit_rule, field_policy=POLICY)
+    check(ctx, ids, statistical_rule)
+    assert target_severities(target) == {"WARNING", "INFO"}
+    assert repository.active_severity_counts(STREAM).status == "NEEDS_REVIEW"
+    assert target_severities(reference) == set()
+    ctx.conn.execute("UPDATE data_quality_issue SET review_status='CONFIRMED'")
+    assert repository.active_severity_counts(STREAM).status == "NEEDS_REVIEW"
+
+    recheck(ctx, target, rule_ids=(error_rule,))
+    assert target_severities(target) == {"ERROR", "WARNING", "INFO"}
+    assert repository.active_severity_counts(STREAM).status == "ERROR"
+    ctx.conn.execute("UPDATE data_quality_issue SET review_status='CORRECTED'")
+    assert repository.active_severity_counts(STREAM).status == "ERROR"
+
+    # 합성 fixture의 외부 설정/자료 변경을 모의하여 각 검사로 해소한다.
+    ctx.conn.execute(
+        "UPDATE quality_rule SET parameters_json=? WHERE rule_id=?", ('{"max":200}', error_rule)
+    )
+    recheck(ctx, target, rule_ids=(error_rule,))
+    assert target_severities(target) == {"WARNING", "INFO"}
+    assert repository.active_severity_counts(STREAM).status == "NEEDS_REVIEW"
+    ctx.conn.execute(
+        "UPDATE characteristic_value SET value_integer=100 WHERE characteristic_value_id=?",
+        (reference,),
+    )
+    ctx.service.compare_reference(target, reference, ref_rule, field_policy=POLICY)
+    ctx.conn.execute(
+        "UPDATE data_dictionary SET unit_id=? WHERE dictionary_id=?",
+        (actual, ctx.items["INTEGER"].dictionary_id),
+    )
+    ctx.service.check_unit(target, unit_rule, field_policy=POLICY)
+    assert target_severities(target) == {"INFO"}
+    assert repository.active_severity_counts(STREAM).status == "NEEDS_REVIEW"
+    check(ctx, ids, statistical_rule)
+    assert target_severities(target) == set()
+    assert repository.active_severity_counts(STREAM).status == "NORMAL"
+    assert len(issues(ctx)) == 4
+    assert all(row["is_active"] == 0 and row["review_status"] == "CORRECTED" for row in issues(ctx))
+    assert (
+        ctx.conn.execute("SELECT sum(is_representative) FROM characteristic_value").fetchone()[0]
+        == 0
+    )
+    assert ctx.conn.execute("SELECT count(*) FROM stream_characteristic").fetchone()[0] == 0
