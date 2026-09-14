@@ -211,3 +211,15 @@ class QualityControlRepository:
         return QCSeverityCounts(
             counts.get("ERROR", 0), counts.get("WARNING", 0), counts.get("INFO", 0)
         )
+
+    def active_severity_counts_for_value(self, characteristic_value_id: int) -> QCSeverityCounts:
+        counts = dict(
+            self._execute(
+                "SELECT severity,count(*) FROM data_quality_issue "
+                "WHERE characteristic_value_id=? AND is_active=1 GROUP BY severity",
+                (characteristic_value_id,),
+            )
+        )
+        return QCSeverityCounts(
+            counts.get("ERROR", 0), counts.get("WARNING", 0), counts.get("INFO", 0)
+        )

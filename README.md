@@ -971,3 +971,56 @@ Generic 검사와 Reference/Unit/Statistical 검사는 명시적 API가 분리�
 일반 재검사는 rule_ids를 명시하여 호출한다. 통합 자동 batch 실행이나 규칙 관리 GUI는
 제공하지 않는다. snapshot의 reference/population/단위 ID는 전용 FK가 아니며 당시 연구값을
 복원하는 저장소가 아니다. 이 제한과 운영 rule 등록은 후속 검토 항목으로 유지한다.
+
+
+## Phase 8A Current-use Selection Foundation
+
+`CurrentValueService.select_current_value(characteristic_value_id, actor_user_id,
+confirm_review_required=False, reason=None)`는 명시한 값을 현재 사용값으로 선택한다.
+별도 request 모델 없이 ID와 keyword option을 받는다. 활성 사용자·값·소하천·사전·카테고리를
+검증하며 deprecated 사전과 CORE는 거부한다. 기존 characteristic_value의 FLEX 자료형에
+적용하고 unit/reference 차이를 자체 보정하거나 별도 선택 기준으로 추정하지 않는다.
+
+정상 current-use는 같은 stream_code/dictionary_id에 활성 is_representative=1인 값이 하나이고
+stream_characteristic이 바로 그 값을 참조하는 상태다. 실제 partial UNIQUE 조건은
+is_representative=1 AND is_active=1이다. 캐시의 같은 stream/dictionary·활성·대표 flag를
+선택 전후에 검증한다. flag-only/cache-only/불일치/비활성 캐시 등의 기존 비정상 상태는
+CurrentValueInvariantError로 거부하며 자동 수리하지 않는다. inactive 과거 대표 flag는
+활성 current-use에 포함하지 않고 그대로 보존한다. 캐시와 활성 대표가 모두 없으면 첫 선택이다.
+
+QC Gate는 transaction 안에서 **대상 value ID의 활성 issue**를 재조회한다.
+활성 ERROR는 confirmation=True여도 차단한다. WARNING/INFO만 있으면 정확한 bool True 확인이
+필요하고, 활성 issue가 없으면 확인 없이 가능하다. NULL value ID issue·다른 값/소하천의
+ERROR·inactive issue는 target Gate에 포함하지 않는다. quality_status 문자열이나 UI의 사전
+조회 결과, 소하천 전체 aggregate를 선택 차단의 근거로 사용하지 않는다.
+Reference WARNING·Unit WARNING/INFO·Statistical INFO도 동일 정책이다.
+확인은 QC 해소·검토 상태 변경·자동 단위환산·reference 대체를 의미하지 않는다.
+
+처리는 단일 BEGIN IMMEDIATE에서 사용자/대상 검증 → 값별 QC → 기존 current 검증 →
+이전 flag 해제 → 새 flag 설정 → cache upsert → record_history → 최종 invariant 확인 순으로
+수행한다. 예외나 commit 실패면 모두 rollback한다. 동시에 다른 값을 선택해도 직렬 처리하여
+최종 flag/cache는 하나로 일치한다. 나중에 직렬 처리된 명시적 선택이 최종 current가 된다.
+Repository는 SQL만 담당하고 정책·확인·invariant는 Service가 담당한다.
+
+정상 current를 재선택하면 changed=False, history_id=None으로 반환하고 UPDATE·cache rewrite·
+이력 생성을 하지 않는다. no-op 전에도 actor·target·QC는 재검증한다. 따라서 이미 current여도
+새 활성 ERROR가 있으면 재선택 요청은 거부하지만 기존 current를 자동 해제하지는 않는다.
+
+불변 CurrentValueSelectionResult는 changed, stream_code(repr 제외), dictionary_id,
+previous_value_id, current_value_id, qc_status_before_selection, confirmation_required,
+confirmation_used, history_id, completed_at(UTC)을 제공한다. 확인이 불필요했다면 사용자가
+True를 전달해도 confirmation_used=False다. 연구값·경로·사유 원문을 result에 넣지 않는다.
+
+record_history.change_type은 CURRENT_VALUE_CHANGE, table_name은 characteristic_value,
+column_name은 is_representative다. record_key의 canonical JSON은 stream_code/dictionary_id,
+old_value는 이전 value ID(NULL 허용), new_value는 새 ID와 QC 상태·확인 필요/사용 여부다.
+actor_user_id와 changed_at을 기록하고 changed_by 사용자명 복제·raw 연구값 복제는 하지 않는다.
+선택 사유는 nullable 컬럼에 맞춰 optional이며 이번 API는 민감 자유문구 저장을 피하기 위해
+RESEARCHER_SELECTION / SOURCE_REVIEW / QC_REVIEW_CONFIRMED 고정 코드만 허용한다.
+자유문구 사유 UX/보호 정책은 후속 검토 사항이다.
+
+old/new 연구값에서 변경하는 것은 is_representative뿐이다. value_*·unit·original_value·
+original_unit·provenance·is_active·기존 updated_at은 그대로 보존한다. 선택 시각은 cache와
+history에 기록한다. 새 characteristic_value, correction, 자동 Import 선택, QC issue 변경,
+자동 reference 교체·단위환산은 없다. Phase 8B correction과 구분하며 schema/migration/dependency
+추가는 없다. 전달하는 actor ID의 활성 여부는 검증하지만 인증 세션 연결은 호출 계층 책임이다.
