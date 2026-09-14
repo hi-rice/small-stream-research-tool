@@ -12,6 +12,7 @@ from small_stream_research_tool.models.quality_control import (
 )
 from small_stream_research_tool.models.quality_control_errors import QualityControlPersistenceError
 from small_stream_research_tool.models.reference_comparison import snapshot_reference_id
+from small_stream_research_tool.models.statistical_outlier import snapshot_population_identity
 
 _RULE_COLUMNS = (
     "rule_id,rule_code,target_type,dictionary_id,rule_type,default_severity,"
@@ -51,7 +52,9 @@ def _scope_where(scope):
     if type(scope) is not QCCheckedScope:
         raise QualityControlPersistenceError()
     types = (
-        ("UNIT_MISMATCH", "UNIT_MISSING")
+        ("STATISTICAL_OUTLIER_CANDIDATE",)
+        if scope.population_identity is not None
+        else ("UNIT_MISMATCH", "UNIT_MISSING")
         if scope.unit_rule_type == "UNIT_MATCH"
         else ("UNIT_CONVERSION_MISSING",)
         if scope.unit_rule_type == "UNIT_CONVERSION_MISSING"
@@ -139,14 +142,20 @@ class QualityControlRepository:
                 "WHERE is_active=1 AND " + where + " ORDER BY issue_id",
                 parameters,
             )
-            if scope.reference_value_id is None
-            or snapshot_reference_id(row[1]) == scope.reference_value_id
+            if (
+                scope.reference_value_id is None
+                or snapshot_reference_id(row[1]) == scope.reference_value_id
+            )
+            and (
+                scope.population_identity is None
+                or snapshot_population_identity(row[1]) == scope.population_identity
+            )
         )
 
     def deactivate_issue(self, issue_id: int, scope: QCCheckedScope) -> None:
         """검증된 ID와 전체 scope가 모두 일치할 때 is_active만 1→0으로 변경한다."""
         where, parameters = _scope_where(scope)
-        if scope.reference_value_id is not None:
+        if scope.reference_value_id is not None or scope.population_identity is not None:
             if issue_id not in self.list_active_ids_for_scope(scope):
                 raise QualityControlPersistenceError()
         count = self._execute(

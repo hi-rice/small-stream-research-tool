@@ -881,3 +881,69 @@ expected 단위가 외부의 명시적 변경으로 바뀌면 이전 pair와 다
 Schema/migration/dependency 추가, 원본/단위/대표값/캐시 수정, Import 매핑 변경은 없다.
 단위 pair ID snapshot은 전용 FK나 단위 정의 전체 snapshot이 아니며,
 실제 보정·승인된 환산·통합 batch orchestration은 후속 범위다.
+
+
+## Phase 7C-3 Statistical Outlier Candidate QC
+
+`STATISTICAL_OUTLIER`는 특성정보의 통계적 확인 후보를 찾는다. 잘못된 값이나 자동 오류로
+판정하지 않으며 값 삭제·비활성화·보정·대표값 변경·분석 대상 자동 제외를 수행하지 않는다.
+계측 수위/유량의 오측 관리와 다른 업무다. 3σ나 계측자료 IQR 1.5를 특성정보 기본값으로
+적용하지 않는다. 단변량 IQR만 지원하고 z-score·ML·시계열·지역별 그룹·다변량 분석은 없다.
+
+`QualityControlService.check_statistical_outlier(target_value_id, rule_id,
+population_value_ids=(...), field_policy=policy)`는 명시적인 모집단과 target 하나를 검사하고
+기존 불변 QualityRecheckResult를 반환한다. 규칙은 `target_type=CHARACTERISTIC_VALUE`,
+활성 FLEX INTEGER/REAL 사전항목에 연결한다. V1에서는 default_severity가 INFO인 규칙만
+허용하고 WARNING/ERROR는 configuration error다. Disabled 규칙은 실행 수 0으로 기존 issue를
+보존한다. 일반 QC와 같은 호출에 암묵적으로 섞지 않으며 일반 재검사는 rule_ids를 명시한다.
+
+parameters_json에는 `method: "IQR"`와 유한한 0 이상의 숫자 `multiplier`가 필수다.
+multiplier=0은 Q1/Q3 바깥을 후보로 보는 명시적 정책이다. 기본 multiplier는 없다.
+선택적인 `minimum_sample_size`는 1 이상의 정수다. 생략 시 수학적 계산 가능 최소인 1개만
+요구하며, 이는 연구적 표본 적정성 기준이 아니다. 한 개 표본의 Q1/Q3는 그 값이어서 후보가 없다.
+unknown parameter·중복 키·bool·부적합 자료형·NaN/Infinity는 거부한다. 표본 수 부족은 오류다.
+
+모집단 계약:
+
+- 중복 없는 양의 value ID tuple을 호출자가 명시하고 target ID를 반드시 포함한다.
+  빈 목록·중복 ID·target 누락은 오류이며 서비스가 자동 추가하거나 제외하지 않는다.
+- 모든 값이 존재하고 활성 상태이며 target과 동일 dictionary_id 및 동일 unit_id여야 한다.
+  target 단위는 NULL을 허용하지 않고 활성 단위여야 한다. 단위 혼합·자동 환산은 없다.
+  사전의 expected unit과의 일치 여부는 별도 Unit QC 영역이다.
+- typed numeric 하나와 유한한 값을 검증한다. 잘못된 행을 통계에서 조용히 제거하지 않는다.
+- representative나 모든 historical/source 값을 자동 선택하지 않는다. 같은 숫자의 서로 다른
+  행은 그대로 표본으로 인정한다. 같은 소하천의 복수 행도 호출자가 선택했다면 각각 반영하므로
+  소하천별 가중치가 의도에 맞는지는 모집단을 선택하는 연구자가 확인해야 한다.
+
+Percentile 알고리즘은 `linear_n_minus_one_v1`로 고정한다. 숫자를 정렬하고 p=1/4 또는 3/4에서
+h=(n−1)×p, i=floor(h), f=h−i로 두어 x[i]+f×(x[i+1]−x[i])를 계산한다.
+f=0이면 x[i]다. INTEGER는 정수, REAL은 저장값의 십진 표현을 정확한 유리수로 사용하여
+보간·경계 연산의 반올림을 피한다. 원본 Excel 수치 복원이나 암묵적 epsilon은 제공하지 않는다.
+Q1=25%, Q3=75%, IQR=Q3−Q1이고 경계는 Q1−multiplier×IQR 및 Q3+multiplier×IQR이다.
+경계 바깥만 후보이며 같은 값은 정상범위다. IQR=0이면 경계는 Q1=Q3 그대로다.
+
+기존 불변 QCFinding에 `STATISTICAL_OUTLIER_CANDIDATE`와 INFO를 기록한다.
+고정 message와 target provenance만 사용하며 원본값·Q1/Q3·bounds·단위명은 message/repr/error나
+issue.original_value/compare_value에 저장하지 않는다. 반환 status는 target 소하천 전체의
+활성 issue 집계이므로 다른 ERROR가 있다면 이 검사 결과와 별개로 ERROR일 수 있다.
+
+`statistical_outlier_v1` canonical snapshot은 원래 rule_parameters와 execution을 분리한다.
+execution에는 정렬한 population_value_ids, sample_size, dictionary_id, unit_id,
+percentile_algorithm 및 population_identity를 보존한다. identity는 정렬된 ID·사전·단위의
+canonical JSON에 대한 SHA-256이다. 숫자 자체는 hash 입력이나 snapshot에 포함하지 않는다.
+ID 입력 순서는 identity에 영향을 주지 않으며 행의 중복 숫자는 유지한다.
+모집단 구성은 복원할 수 있지만, 이후 같은 ID의 값이 바뀌면 당시 수치를 이 snapshot만으로
+복원하지 못한다. ID는 전용 population FK가 아니며 snapshot 크기는 표본 수에 비례한다.
+
+기존 reconciliation에 population identity 범위를 추가했다. 같은 rule/target/출처/모집단의
+동일 후보는 ID·검토 이력을 유지하고 정상범위가 되면 issue만 비활성화한다. 재발은 새 행이며
+재활성화·DELETE는 없다. 모집단 A/B는 별개 사건으로 보존하고 다른 모집단 issue를 해소하지 않는다.
+같은 모집단에서 multiplier·최소 표본 정책·규칙 version이 바뀌면 이전 snapshot은 보존하면서
+해당 범위의 이전 후보를 비활성화하고 현재 후보가 있으면 새 행을 만든다.
+다른 QC 종류·target·모집단은 변경하지 않는다.
+
+단일 BEGIN IMMEDIATE 안에서 모집단을 조회·평가하고 issue 저장·비활성화·상태 집계를 수행한다.
+실패하면 모두 rollback하며 Repository 내부 commit은 없다. Schema/migration/dependency,
+운영 규칙 seed, 실제 연구자료·운영 DB 접근은 추가하지 않았다.
+Phase 7 전체 완료 판정은 이 개별 기능의 테스트 통과와 별도로 로드맵의 V1 규칙 선정 및
+전체 Gate 검토가 필요하다. 이번 작업에서 Phase 8 구현은 시작하지 않는다.

@@ -19,6 +19,10 @@ from small_stream_research_tool.models.quality_control_errors import (
     QualityRuleConfigurationError,
 )
 from small_stream_research_tool.models.reference_comparison import comparison_snapshot
+from small_stream_research_tool.models.statistical_outlier import (
+    population_identity,
+    statistical_snapshot,
+)
 from small_stream_research_tool.repositories.dictionary_repository import DictionaryRepository
 from small_stream_research_tool.repositories.import_persistence_repository import (
     CharacteristicValueRepository,
@@ -34,6 +38,11 @@ from small_stream_research_tool.services.dictionary_service import DictionarySer
 from small_stream_research_tool.services.quality_rule_evaluator import compile_rule
 from small_stream_research_tool.services.reference_comparison_evaluator import (
     compile_reference_rule,
+)
+from small_stream_research_tool.services.statistical_outlier_evaluator import (
+    compile_statistical_rule,
+    iqr_bounds,
+    numeric_value,
 )
 from small_stream_research_tool.services.unit_quality_evaluator import (
     UNIT_MESSAGES,
@@ -423,6 +432,87 @@ class QualityControlService:
                             ),
                         )
                     result = self._reconcile((scope,), findings, {value.stream_code})
+            return result
+        except QualityControlError:
+            raise
+        except Exception:
+            raise QualityControlPersistenceError() from None
+
+    def check_statistical_outlier(
+        self, target_value_id, rule_id, *, population_value_ids, field_policy=None
+    ):
+        """명시적 모집단의 INFO 후보만 검사한다. 다른 모집단 사건은 보존한다."""
+        try:
+            with transaction(self._connection):
+                _require(type(field_policy) is ImportFieldPolicy)
+                _require(_id(target_value_id) and _id(rule_id))
+                _require(type(population_value_ids) is tuple and bool(population_value_ids))
+                _require(all(_id(i) for i in population_value_ids))
+                _require(len(set(population_value_ids)) == len(population_value_ids))
+                _require(target_value_id in population_value_ids)
+                target = self._values.get_by_id(target_value_id)
+                _require(target is not None and target.is_active)
+                item = self._item(target.dictionary_id)
+                _require(item.internal_name not in field_policy.excluded_internal_names)
+                rule = self._repository.get_rule(rule_id)
+                _require(rule is not None)
+                policy = compile_statistical_rule(rule, item)
+                if not rule.is_enabled:
+                    result = self._reconcile((), (), {target.stream_code})
+                else:
+                    _require(target.unit_id is not None)
+                    unit = self._dictionary.get_unit(target.unit_id)
+                    _require(unit is not None and unit.is_active)
+                    numbers = {}
+                    for value_id in sorted(population_value_ids):
+                        value = self._values.get_by_id(value_id)
+                        _require(value is not None and value.is_active)
+                        _require(value.dictionary_id == item.dictionary_id)
+                        _require(value.unit_id == target.unit_id)
+                        self._provenance(value)
+                        numbers[value_id] = numeric_value(value, item.data_type)
+                    bounds = iqr_bounds(tuple(numbers.values()), policy)
+                    column = self._provenance(target)
+                    identity = population_identity(
+                        population_value_ids, item.dictionary_id, target.unit_id
+                    )
+                    scope = QCCheckedScope(
+                        rule_id,
+                        target_value_id,
+                        target.stream_code,
+                        item.dictionary_id,
+                        target.import_id,
+                        target.import_sheet_id,
+                        target.source_row,
+                        column,
+                        population_identity=identity,
+                    )
+                    findings = ()
+                    if bounds.is_candidate(numbers[target_value_id]):
+                        findings = (
+                            QCFinding(
+                                rule_id,
+                                rule.rule_code,
+                                rule.rule_version,
+                                statistical_snapshot(
+                                    policy.parameters_snapshot,
+                                    population_value_ids,
+                                    item.dictionary_id,
+                                    target.unit_id,
+                                ),
+                                target_value_id,
+                                target.stream_code,
+                                item.dictionary_id,
+                                target.import_id,
+                                target.import_sheet_id,
+                                target.source_row,
+                                column,
+                                "STATISTICAL_OUTLIER_CANDIDATE",
+                                rule.default_severity,
+                                "Value is outside the configured statistical candidate range.",
+                            ),
+                        )
+                    result = self._reconcile((scope,), findings, {target.stream_code})
             return result
         except QualityControlError:
             raise

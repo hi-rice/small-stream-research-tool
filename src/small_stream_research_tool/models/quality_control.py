@@ -99,6 +99,7 @@ class QCCheckedScope:
     source_column: int | None
     reference_value_id: int | None = None
     unit_rule_type: str | None = None
+    population_identity: str | None = field(default=None, repr=False)
 
 
 @dataclass(frozen=True)
