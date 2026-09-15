@@ -657,6 +657,10 @@ Phase 8 완료 기준을 충족하여 Phase 9 진입이 가능하다. Phase 9 �
 
 00 로그인·최초 사용자 등록, 01 홈, 09 소하천 조회, 14 작업이력, 15 마이페이지를 기존 Service에 연결한다. 최근 작업은 record_history를 공유한다.
 
+Phase 9A Read/Query Backend 완료: 목록 검색·지역 코드 필터·정렬·DB pagination과 제한된
+상세/현재값/QC/출처 표시 모델을 제공한다. Phase 9B 앱 shell·로그인·목록 GUI, 9C 상세 GUI,
+9D 홈·작업이력·마이페이지와 Phase 9 Final Gate는 후속 작업이다. Phase 9 전체는 미완료다.
+
 ### 목표
 
 연구자가 코드 없이 DB를 조회하고 검토할 수 있게 한다.

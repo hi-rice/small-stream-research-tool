@@ -24,6 +24,7 @@ Phase 7B-1은 명시적 대상을 검사하고 issue를 생성하는 범용 QC �
 Phase 8A는 명시적 현재값 선택, Phase 8B는 새 USER_CORRECTION 값 생성,
 Phase 8C는 특성값 비활성화·복원과 현재값 참조 캐시 재구축 백엔드를 제공한다.
 Phase 8 Final Gate는 Phase 7 QC와 Phase 8A/B/C의 합성 DB lifecycle 통합 검증을 통과했다.
+Phase 9A는 GUI 없이 목록·검색·페이지·기본 상세·현재값/QC/출처의 안전한 조회 backend를 제공한다.
 로그인 GUI·Import 화면·업무 화면·분석은 아직 구현하지 않았다.
 
 ## 환경과 의존성
@@ -1124,3 +1125,25 @@ DEACTIVATE/RESTORE는 값 ID와 상태 전후, CACHE_REBUILD는 pair와 포인�
 이력·출처 보존을 검증한다. 활성 ERROR 차단, WARNING/INFO 명시적 확인, 비활성/무관 issue,
 업무별 rollback 및 대표 flag·캐시 일치를 확인했다. Phase 8 전체 Gate를 통과해 Phase 9
 진입이 가능하다. QC issue가 없다는 사실만으로 필수 검사 완료를 증명하지 않는 기존 계약은 유지한다.
+
+## Phase 9A Read/Query Backend
+
+`StreamReadService(connection).list_streams(StreamListRequest(...))`는 page(1부터),
+page_size(1~100), 관리코드 정확/접두 또는 하천명 부분 검색, 시·도(2자리)·시군구(3자리)·
+읍면동(3자리) 코드 필터와 허용 정렬을 받는다. 기본은 활성 하천의 관리코드 오름차순이다.
+다른 정렬에는 관리코드를 tie-breaker로 사용한다. COUNT와 LIMIT/OFFSET은 DB에서 수행하고
+한 페이지의 QC는 한 번에 집계한다. 100행 제한은 GUI의 일회 적재량과 QC IN batch의 기술적
+상한이다. 결과는 total_count/page/page_size/total_pages와 불변 표시 행을 반환한다.
+
+`get_stream_detail(stream_code, display_policy=...)`는 기본정보와 명시적으로 허용한 사전 항목의
+현재 사용값 요약만 반환한다. `CharacteristicDisplayPolicy`의 기본 허용 목록은 비어 있으며,
+항목 ID는 최대 200개까지 명시한다. 이 상한은 SQLite bind 수와 상세 화면 전송량을 제한한다.
+운영 항목 allowlist를 임의 seed하지 않는다. 등록 파일명·시트명은 별도 표시 옵션이 True일
+때만 반환하며 원본 경로·셀·header·QC message·계정정보는 표시 모델에 넣지 않는다.
+
+현재값 상태는 활성 대표 flag와 cache·값 키가 일치하는 VALID_CURRENT, 둘 다 없는 UNASSIGNED,
+불일치한 INCONSISTENT로 구분한다. 비활성 과거 대표는 현재값이 아니다. QC 표시는 활성 ERROR의
+ERROR, 활성 WARNING/INFO의 NEEDS_REVIEW, 활성 issue가 없는 ACTIVE_ISSUES_NONE으로 구분하며
+마지막 상태는 검사 완료를 증명하지 않는다. 조회는 SQLite read snapshot에서 SELECT만 수행하고
+불일치를 자동 수리하지 않는다. Phase 9B 앱 shell·로그인·목록 GUI, 9C 상세 GUI, 9D 홈·이력·
+마이페이지와 최종 Gate는 아직 남아 있다. PySide6는 이번 단계에 추가하지 않았다.
