@@ -23,6 +23,7 @@ Phase 6C는 RUNNING Import의 근거 검사와 명시적 SUCCESS 종료 복구�
 Phase 7B-1은 명시적 대상을 검사하고 issue를 생성하는 범용 QC 기반을 제공한다.
 Phase 8A는 명시적 현재값 선택, Phase 8B는 새 USER_CORRECTION 값 생성,
 Phase 8C는 특성값 비활성화·복원과 현재값 참조 캐시 재구축 백엔드를 제공한다.
+Phase 8 Final Gate는 Phase 7 QC와 Phase 8A/B/C의 합성 DB lifecycle 통합 검증을 통과했다.
 로그인 GUI·Import 화면·업무 화면·분석은 아직 구현하지 않았다.
 
 ## 환경과 의존성
@@ -1114,4 +1115,12 @@ dictionary_id=None)`를 제공한다. 값 변경은 활성 actor와 Phase 8의 �
 활성 대표 중복을 막고, 재구축도 복수 대표를 발견하면 오류로 중단한다. 실제 캐시 포인터가
 바뀐 pair에만 기술 이력 CACHE_REBUILD를 남긴다. 무변경 pair는 캐시 시각·이력을 갱신하지 않는다.
 DEACTIVATE/RESTORE는 값 ID와 상태 전후, CACHE_REBUILD는 pair와 포인터 ID 전후만 이력에
-기록하며 원시 연구값이나 경로를 복제하지 않는다. Phase 8 Final Gate는 별도 통합 검증 단계다.
+기록하며 원시 연구값이나 경로를 복제하지 않는다.
+
+## Phase 8 Final Gate
+
+`tests/integration/test_phase_8_final_gate.py`는 합성 임시 DB에서 Import 출처 값 → 현재값
+선택 → 보정 chain → 명시적 QC·재검사 → 현재값 변경 → 비활성화·복원 → 캐시 재구축과
+이력·출처 보존을 검증한다. 활성 ERROR 차단, WARNING/INFO 명시적 확인, 비활성/무관 issue,
+업무별 rollback 및 대표 flag·캐시 일치를 확인했다. Phase 8 전체 Gate를 통과해 Phase 9
+진입이 가능하다. QC issue가 없다는 사실만으로 필수 검사 완료를 증명하지 않는 기존 계약은 유지한다.

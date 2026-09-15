@@ -649,6 +649,10 @@ StreamService·CharacteristicRepository·HistoryRepository 책임, 캐시 rebuil
 
 확정된 현재값 정책(대상 값 ID의 활성 ERROR 신규 지정 금지, WARNING/INFO는 확인 후 명시적 지정)을 구현하고 이력·캐시·QC 통합 테스트 통과 후 Phase 9로 진행한다. 공통 Phase Gate도 만족해야 한다.
 
+Phase 8 Final Gate 통과: 합성 임시 DB의 Phase 7 QC·Phase 8A/B/C 전체 값 lifecycle에서
+원본 출처, QC issue, 현재값 불변조건, 캐시 재구축, 이력 및 업무별 rollback을 검증했다.
+Phase 8 완료 기준을 충족하여 Phase 9 진입이 가능하다. Phase 9 구현은 아직 시작하지 않았다.
+
 ## Phase 9. 로그인·홈·소하천 조회 GUI
 
 00 로그인·최초 사용자 등록, 01 홈, 09 소하천 조회, 14 작업이력, 15 마이페이지를 기존 Service에 연결한다. 최근 작업은 record_history를 공유한다.
