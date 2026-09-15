@@ -21,6 +21,8 @@ Phase 6B-1은 source/Import 출처·소하천·특성값의 SQLite 저장소 pri
 Phase 6B-2는 단일 시트 Prepared 결과의 실제 DB Import Execution을 제공한다.
 Phase 6C는 RUNNING Import의 근거 검사와 명시적 SUCCESS 종료 복구를 제공한다.
 Phase 7B-1은 명시적 대상을 검사하고 issue를 생성하는 범용 QC 기반을 제공한다.
+Phase 8A는 명시적 현재값 선택, Phase 8B는 새 USER_CORRECTION 값 생성,
+Phase 8C는 특성값 비활성화·복원과 현재값 참조 캐시 재구축 백엔드를 제공한다.
 로그인 GUI·Import 화면·업무 화면·분석은 아직 구현하지 않았다.
 
 ## 환경과 의존성
@@ -1089,3 +1091,27 @@ active issue aggregate와 같지 않다. issue가 없다는 사실만으로 검�
 기존 characteristic_value의 값·단위·provenance·대표/활성 flag·updated_at, 현재값 캐시,
 small_stream, 사전, 단위 사전, QC issue는 변경하지 않는다. 새 dependency/schema/migration,
 UI, 실제 연구자료/운영 DB 접근, 자동 수정은 없다. 인증된 actor ID 전달은 호출 계층 책임이다.
+
+## Phase 8C Current-use Maintenance
+
+`CurrentValueMaintenanceService(connection)`은 `deactivate_value(value_id, actor_user_id,
+confirm_current_use_loss=False, reason_code=...)`, `restore_value(value_id, actor_user_id,
+reason_code=...)`, `rebuild_current_value_cache(actor_user_id, stream_code=None,
+dictionary_id=None)`를 제공한다. 값 변경은 활성 actor와 Phase 8의 구조화 reason code가 필요하다.
+캐시 재구축도 명시적 활성 actor 호출로 한정한다. 모든 변경은 BEGIN IMMEDIATE에서 이력과
+최종 상태 검증을 함께 처리하고 실패 시 rollback한다. 이미 목표 상태인 요청은 no-op이다.
+
+비대표값 비활성화는 `is_active`만 0으로 바꾸며 값·Import 출처·QC issue를 보존한다.
+현재 사용값 비활성화에는 정확한 bool `confirm_current_use_loss=True`가 필요하다. 이때
+대표 flag 해제, 캐시 행 제거, 값 비활성화와 DEACTIVATE 이력을 함께 저장하고 대체 값을
+자동 선택하지 않는다. 복원은 비대표 비활성값의 `is_active`만 1로 바꾸고 RESTORE 이력을
+남긴다. 비활성 과거 대표 flag=1인 값은 자동 현재값 복귀를 막기 위해 복원 요청을 거부한다.
+복원은 QC 완료나 현재값 선택을 의미하지 않는다.
+
+캐시는 활성 `is_representative=1` 값만을 기준으로 전체 또는 정확한 stream/dictionary pair를
+재구축한다. 대표값이 없으면 캐시를 제거하고, 누락·잘못된 포인터는 캐시만 바로잡는다.
+비활성 과거 대표 flag는 보존하며 선택 판단이나 값 변경을 하지 않는다. 정상 DB의 부분 UNIQUE가
+활성 대표 중복을 막고, 재구축도 복수 대표를 발견하면 오류로 중단한다. 실제 캐시 포인터가
+바뀐 pair에만 기술 이력 CACHE_REBUILD를 남긴다. 무변경 pair는 캐시 시각·이력을 갱신하지 않는다.
+DEACTIVATE/RESTORE는 값 ID와 상태 전후, CACHE_REBUILD는 pair와 포인터 ID 전후만 이력에
+기록하며 원시 연구값이나 경로를 복제하지 않는다. Phase 8 Final Gate는 별도 통합 검증 단계다.

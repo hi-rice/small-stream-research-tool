@@ -456,8 +456,10 @@ def test_final_invariant_detects_mutation(ctx, target):
     original = source(ctx)
     before = snapshot(ctx.conn)
     sql = {
-        "source": "UPDATE characteristic_value SET value_number=99 WHERE characteristic_value_id=1;",
-        "correction": "UPDATE characteristic_value SET is_active=0 WHERE source_type='USER_CORRECTION';",
+        "source": """UPDATE characteristic_value SET value_number=99
+        WHERE characteristic_value_id=1;""",
+        "correction": """UPDATE characteristic_value SET is_active=0
+        WHERE source_type='USER_CORRECTION';""",
         "history": "UPDATE record_history SET reason='INVALID' WHERE history_id=NEW.history_id;",
     }[target]
     ctx.conn.execute("CREATE TRIGGER corrupt AFTER INSERT ON record_history BEGIN " + sql + " END")
@@ -520,7 +522,8 @@ def test_correction_qc_then_separate_selection(ctx):
     ctx.conn.execute(
         "INSERT INTO quality_rule (rule_code,rule_name,target_type,dictionary_id,rule_type,"
         "default_severity,rule_version,is_enabled,created_at,updated_at) "
-        "VALUES ('synthetic','Synthetic','CHARACTERISTIC_VALUE',?,'NON_NEGATIVE','ERROR','v1',1,?,?)",
+        "VALUES ('synthetic','Synthetic','CHARACTERISTIC_VALUE',?,"
+        "'NON_NEGATIVE','ERROR','v1',1,?,?)",
         (original.dictionary_id, STAMP, STAMP),
     )
     assert ctx.conn.execute("SELECT count(*) FROM data_quality_issue").fetchone()[0] == 0
