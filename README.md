@@ -1024,3 +1024,68 @@ original_unit·provenance·is_active·기존 updated_at은 그대로 보존한�
 history에 기록한다. 새 characteristic_value, correction, 자동 Import 선택, QC issue 변경,
 자동 reference 교체·단위환산은 없다. Phase 8B correction과 구분하며 schema/migration/dependency
 추가는 없다. 전달하는 actor ID의 활성 여부는 검증하지만 인증 세션 연결은 호출 계층 책임이다.
+
+## Phase 8B USER_CORRECTION Value Creation
+
+`CorrectionService(connection).create_correction(CorrectionRequest(...))`는 기존 값을
+덮어쓰지 않고 새 characteristic_value와 보정 이력을 하나의 BEGIN IMMEDIATE transaction으로
+생성한다. request는 source_value_id, actor_user_id, corrected_value, reason_code와 optional
+corrected_unit_id를 받는 불변 모델이다. 결과 CorrectionCreationResult는 correction_value_id,
+source_value_id, stream_code(repr 제외), dictionary_id, actor_user_id, history_id, created_at을
+반환한다. request의 연구값은 repr에 표시하지 않는다.
+
+source·actor·소하천·사전·카테고리가 존재하고 활성이어야 한다. deprecated 사전와 CORE는
+거부한다. 새 값은 source의 stream_code/dictionary_id를 그대로 사용하며 다른 항목이나 하천으로
+이동하는 API는 없다. active 보정값을 다음 보정의 source로 사용할 수 있다. 같은 source와 같은
+입력도 별도 판단 이벤트로 INSERT하며 자동 deduplication/idempotency는 제공하지 않는다.
+결과가 불확실한 요청을 무조건 재시도하지 말고 이력을 확인해야 한다.
+
+자료형은 사전의 INTEGER/REAL/TEXT/DATE/DATETIME을 따른다. INTEGER는 bool을 제외한 signed
+64-bit Python int만 허용하고 float/문자열을 정수로 바꾸지 않는다. REAL은 기존 normalize_cell
+계약의 유한 int/float/숫자 문자열을 허용하며 NaN/Infinity/overflow/underflow를 거부한다.
+DATE/DATETIME도 기존 parser를 재사용하여 유효한 ISO 문자열 또는 date/datetime을 저장하며
+timezone-naive 값에 시간대를 붙이거나 UTC로 추정 변환하지 않는다. parser adapter의 임시 셀
+좌표는 provenance로 저장하지 않는다. TEXT는 문자열 그대로 보존하고 trim/case 변환이나
+공백을 결측으로 바꾸지 않는다. 빈 문자열/공백 문자열도 보존한다. 사전에 길이 제한 필드는
+없으며 임의 제한을 만들지 않는다. None 보정은 nullable 사전여도 exactly-one typed CHECK를
+만족하지 못하므로 거부한다. 이 API는 결측 삭제/비활성화 API가 아니다.
+
+corrected_unit_id 생략(UnitInheritance.SOURCE)은 source.unit_id를 상속한다. 명시적 값은
+dictionary.unit_id와 정확히 같아야 하며 None은 사전 기준 단위도 None일 때만 허용한다.
+실제로 저장할 단위가 있으면 존재·활성을 검증한다. 단위 변경에도 corrected_value는 필수이며
+사용자가 입력한 새 값과 단위를 저장할 뿐 자동 환산하지 않는다. 상속 단위가 기준 단위와
+다른 것은 Unit QC에서 검토할 수 있도록 보존하며 QC 통과로 간주하지 않는다.
+기준 단위 외 다른 단위를 명시하는 기능과 자동 변환은 제공하지 않는다.
+
+새 행은 source_type=USER_CORRECTION, is_active=1, is_representative=0,
+quality_status=UNREVIEWED다. original_value/original_unit/source_reference와
+import_id/import_sheet_id/mapping_id/source_row는 모두 NULL이며 원본 Excel 출처를 복제하지
+않는다. reference_year는 원래 값의 자료 기준 연도를 상속하며 현재 연도로 채우거나 별도
+변경하지 않는다. created_at/updated_at은 공통 UTC helper의 같은 시각이다.
+
+record_history.change_type=CORRECTION은 DATABASE_DESIGN의 기존 업무 용어를 따른다.
+record_key는 stream_code/dictionary_id JSON, old_value는 직접 parent의 source_value_id JSON,
+new_value는 correction_value_id와 event=USER_CORRECTION_CREATE JSON이다. actor_user_id,
+reason, changed_at을 기록한다. reason_code는 Phase 8A의 RESEARCHER_SELECTION /
+SOURCE_REVIEW / QC_REVIEW_CONFIRMED 중 하나를 필수로 받는다. 이 코드는 QC 완료 증명이 아니다.
+자유문구 note, 사용자명 snapshot, raw 연구값/원본값/경로 복제는 없다. parent ID는 generic
+history의 JSON에 있으므로 전용 FK가 아닌 Service 계약이다. source_reference에 별도 중복
+연결을 만들지 않는다. source와 새 행·history를 저장 후 재조회 검증하며 history 실패,
+최종 검증 실패, commit 실패는 새 값과 이력 모두 rollback한다. 동시 보정은 직렬 처리되고
+각각 별도 행으로 보존된다. Repository는 SQL, Service는 검증·정책·transaction을 담당한다.
+
+**보정 생성은 QC pass도 현재 사용값 선택도 아니다.** Phase 8B에서는 select_as_current와
+즉시 선택 옵션을 제공하지 않는다. 필수 QC 완료를 신뢰성 있게 증명하는 영속 실행 기록이
+현재 없기 때문이다. UNREVIEWED는 신규 행의 초기 상태일 뿐 QC 실행 이력이나 Phase 7의
+active issue aggregate와 같지 않다. issue가 없다는 사실만으로 검사 완료를 증명하지 못한다.
+
+권장 순서는 **보정 생성 → 필요한 QC API 명시 실행 → 연구자 검토 → Phase 8A 현재값 선택**이다.
+자동 QC orchestration은 이번 범위에 포함하지 않는다. Phase 8A는 별도 transaction에서
+대상 active ERROR 차단/WARNING·INFO 확인을 수행하지만 모든 필수 QC 실행 여부까지
+강제하지는 않는다. 후속 호출 계층에서 검사 실행 안내와 검토 절차를 연결해야 한다.
+별도 선택 실패 시 이미 생성한 보정값은 남고 기존 current-use는 유지된다. 생성+선택을
+하나의 요청으로 가장하지 않으며 중첩 transaction도 만들지 않는다.
+
+기존 characteristic_value의 값·단위·provenance·대표/활성 flag·updated_at, 현재값 캐시,
+small_stream, 사전, 단위 사전, QC issue는 변경하지 않는다. 새 dependency/schema/migration,
+UI, 실제 연구자료/운영 DB 접근, 자동 수정은 없다. 인증된 actor ID 전달은 호출 계층 책임이다.
