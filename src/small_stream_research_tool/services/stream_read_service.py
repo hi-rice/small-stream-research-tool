@@ -7,6 +7,7 @@ from small_stream_research_tool.models.stream_read import (
     CharacteristicDisplayPolicy,
     CharacteristicSummary,
     ProvenanceSummary,
+    RegionOption,
     StreamBasicDetail,
     StreamListPage,
     StreamListRequest,
@@ -130,6 +131,26 @@ class StreamReadService:
                     rows,
                 )
             return result
+        except StreamReadError:
+            raise
+        except Exception:
+            raise StreamReadFailure() from None
+
+    def region_options(self, level, *, province_code=None, city_county_code=None):
+        try:
+            if level not in ("province", "city_county", "town"):
+                raise InvalidStreamReadRequest()
+            if province_code is not None and not _code(province_code, 2):
+                raise InvalidStreamReadRequest()
+            if city_county_code is not None and not _code(city_county_code, 3):
+                raise InvalidStreamReadRequest()
+            if level == "city_county" and province_code is None:
+                raise InvalidStreamReadRequest()
+            if level == "town" and (province_code is None or city_county_code is None):
+                raise InvalidStreamReadRequest()
+            with read_transaction(self._connection):
+                rows = self._repository.region_options(level, province_code, city_county_code)
+            return tuple(RegionOption(code, name) for code, name in rows)
         except StreamReadError:
             raise
         except Exception:

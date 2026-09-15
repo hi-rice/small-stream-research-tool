@@ -25,16 +25,17 @@ Phase 8A는 명시적 현재값 선택, Phase 8B는 새 USER_CORRECTION 값 생�
 Phase 8C는 특성값 비활성화·복원과 현재값 참조 캐시 재구축 백엔드를 제공한다.
 Phase 8 Final Gate는 Phase 7 QC와 Phase 8A/B/C의 합성 DB lifecycle 통합 검증을 통과했다.
 Phase 9A는 GUI 없이 목록·검색·페이지·기본 상세·현재값/QC/출처의 안전한 조회 backend를 제공한다.
-로그인 GUI·Import 화면·업무 화면·분석은 아직 구현하지 않았다.
+Phase 9B는 로컬 로그인·앱 shell·소하천 목록 GUI를 제공한다. 상세·홈·이력·분석은 아직 미구현이다.
 
 ## 환경과 의존성
 
 - Python **3.12.x**, Windows를 기본 대상으로 한다.
 - 표준 `venv` + `pip`, `pyproject.toml` + setuptools의 `src` 패키지 구조를 사용한다.
   별도 패키지 관리자 없이 Python 기본 도구로 설치·검증하기 위한 선택이다.
-- 실행 의존성은 Python 표준 라이브러리, 비밀번호용 argon2-cffi와 Excel 읽기용 openpyxl이다.
+- 실행 의존성은 Python 표준 라이브러리, 비밀번호용 argon2-cffi, Excel 읽기용 openpyxl,
+  데스크톱 GUI용 PySide6이다.
 - 개발 도구는 pytest(테스트), ruff(lint·format)다. mypy는 도입하지 않았다.
-- 향후 PySide6, pandas, matplotlib는 실제 사용하는 Phase에서 추가한다.
+- 향후 pandas, matplotlib는 실제 사용하는 Phase에서 추가한다.
   SQLite는 표준 `sqlite3`를 사용하며 ORM은 도입하지 않는다.
 
 ## 개발환경 설치 (PowerShell)
@@ -62,7 +63,10 @@ py -3.12 -m venv .venv
 ```
 
 두 실행 경로는 `app/main.py`의 `main()`으로 연결된다. `--help`로 옵션을 확인할 수 있다.
-실제 창을 띄우거나 DB·workspace·백업 파일을 만들지 않는다.
+기본 실행은 로컬 DB를 초기화/마이그레이션하고 최초 사용자 등록 또는 로그인 창을 연다.
+`--version`/`--help`는 GUI·DB를 시작하지 않는다. 초기 등록은 사용자 0명일 때만 제공한다.
+실행 전 `LOCALAPPDATA`가 올바른 절대 경로인지 확인한다. 연구 DB 대신 합성 DB로 확인하려면
+별도 임시 `LOCALAPPDATA`를 지정한다.
 
 ## 설정과 로깅
 
@@ -1145,5 +1149,16 @@ page_size(1~100), 관리코드 정확/접두 또는 하천명 부분 검색, 시
 불일치한 INCONSISTENT로 구분한다. 비활성 과거 대표는 현재값이 아니다. QC 표시는 활성 ERROR의
 ERROR, 활성 WARNING/INFO의 NEEDS_REVIEW, 활성 issue가 없는 ACTIVE_ISSUES_NONE으로 구분하며
 마지막 상태는 검사 완료를 증명하지 않는다. 조회는 SQLite read snapshot에서 SELECT만 수행하고
-불일치를 자동 수리하지 않는다. Phase 9B 앱 shell·로그인·목록 GUI, 9C 상세 GUI, 9D 홈·이력·
-마이페이지와 최종 Gate는 아직 남아 있다. PySide6는 이번 단계에 추가하지 않았다.
+불일치를 자동 수리하지 않는다. Phase 9B에서 PySide6 앱 shell·로그인·목록 GUI를 연결했다.
+9C 상세 GUI, 9D 홈·이력·마이페이지와 최종 Gate는 아직 남아 있다.
+
+## Phase 9B 목록 GUI
+
+기본 실행은 기존 migration runner로 DB를 준비하고 `AuthService`로 최초 사용자 등록/로그인을
+진행한다. 인증 공개 사용자 정보만 GUI session에 보관하고 로그아웃 시 제거한다. 앱 shell은
+09 소하천 조회만 실제 연결하며 다른 메뉴는 미구현 상태를 명시한다.
+
+목록은 `StreamReadService`의 50행 DB pagination, 검색, 활성 소하천 기반 지역 선택지,
+허용된 서버 정렬을 사용한다. 목록 상태는 오류/확인 필요/활성 문제 없음으로 표시하며 마지막은
+QC 완료를 뜻하지 않는다. Qt worker마다 자체 SQLite 연결을 만들고 닫으며 요청 번호가 지난
+결과는 화면에 반영하지 않는다. 조회 화면의 SQL·Repository 접근과 특성값 변경 기능은 없다.

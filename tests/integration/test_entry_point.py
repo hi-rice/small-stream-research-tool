@@ -1,4 +1,4 @@
-"""설치된 패키지를 저장소 밖에서 실행한다. GUI·DB·원본자료는 사용하지 않는다."""
+"""설치된 패키지 CLI와 합성 DB GUI 시작점을 저장소 밖에서 검증한다."""
 
 import os
 import subprocess
@@ -12,6 +12,7 @@ def run_application(tmp_path, command, *, local_app_data=None):
     env = os.environ.copy()
     env["LOCALAPPDATA"] = str(tmp_path / "local") if local_app_data is None else local_app_data
     env["PYTHONIOENCODING"] = "utf-8"
+    env["QT_QPA_PLATFORM"] = "offscreen"
     return subprocess.run(
         command,
         cwd=tmp_path,
@@ -25,18 +26,32 @@ def run_application(tmp_path, command, *, local_app_data=None):
 
 
 @pytest.mark.parametrize("entry", ["module", "console"])
-def test_installed_entry_points_start_without_data_files(tmp_path, entry):
+def test_installed_entry_points_show_metadata_without_data_files(tmp_path, entry):
     if entry == "module":
-        command = [sys.executable, "-m", "small_stream_research_tool"]
+        command = [sys.executable, "-m", "small_stream_research_tool", "--help"]
     else:
         name = "small-stream-research-tool.exe" if os.name == "nt" else "small-stream-research-tool"
-        command = [str(Path(sys.executable).with_name(name))]
+        command = [str(Path(sys.executable).with_name(name)), "--help"]
     result = run_application(tmp_path, command)
     assert result.returncode == 0, result.stderr
-    assert "소하천 데이터 관리" in result.stderr
-    assert "Phase 0" in result.stderr
-    assert str(tmp_path) not in result.stderr
+    assert "소하천 데이터 관리" in result.stdout
+    assert str(tmp_path) not in result.stdout
     assert list(tmp_path.iterdir()) == []
+
+
+def test_gui_entry_initializes_synthetic_database(tmp_path):
+    script = (
+        "from PySide6.QtCore import QTimer; "
+        "from PySide6.QtWidgets import QApplication; "
+        "from small_stream_research_tool.app.main import main; "
+        "app=QApplication([]); QTimer.singleShot(500, app.quit); "
+        "raise SystemExit(main([]))"
+    )
+    result = run_application(tmp_path, [sys.executable, "-c", script])
+    assert result.returncode == 0, result.stderr
+    assert (
+        tmp_path / "local" / "NDMI" / "small-stream-research-tool" / "db" / "research.sqlite3"
+    ).exists()
 
 
 def test_version_uses_installed_package_metadata(tmp_path):

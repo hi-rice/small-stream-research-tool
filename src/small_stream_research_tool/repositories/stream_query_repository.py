@@ -63,6 +63,29 @@ class StreamQueryRepository:
         where, params = self._where(request)
         return self._rows("SELECT count(*) FROM small_stream s" + where, params)[0][0]
 
+    def region_options(self, level, province_code=None, city_county_code=None):
+        columns = {
+            "province": ("province_code", "province_name"),
+            "city_county": ("city_county_code", "city_county_name"),
+            "town": ("town_code", "town_name"),
+        }
+        code, name = columns[level]
+        clauses = ["is_active=1"]
+        params = []
+        if province_code is not None:
+            clauses.append("province_code=?")
+            params.append(province_code)
+        if city_county_code is not None:
+            clauses.append("city_county_code=?")
+            params.append(city_county_code)
+        return self._rows(
+            f"SELECT {code},MIN(COALESCE(NULLIF({name},''),{code})) "
+            "FROM small_stream WHERE "
+            + " AND ".join(clauses)
+            + f" GROUP BY {code} ORDER BY {code}",
+            tuple(params),
+        )
+
     def page_streams(self, request):
         where, params = self._where(request)
         order = SORT_COLUMNS[request.sort_field] + " " + request.sort_direction

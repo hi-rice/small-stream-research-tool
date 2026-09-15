@@ -85,3 +85,9 @@ class CharacteristicSummary:
 class StreamReadDetail:
     basic: StreamBasicDetail
     characteristics: tuple[CharacteristicSummary, ...]
+
+
+@dataclass(frozen=True)
+class RegionOption:
+    code: str
+    name: str
