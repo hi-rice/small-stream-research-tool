@@ -665,6 +665,11 @@ Phase 9B 구현: PySide6 앱 시작·최초 사용자 등록/로그인·로그�
 목록의 검색·지역 연동 필터·서버 정렬·DB 페이지 조회를 연결했다. 지역 선택지는 조회 Service가
 활성 소하천의 실제 코드/명칭을 읽는다. 9C 상세와 9D 홈·이력·마이페이지 및 최종 Gate는 남아 있다.
 
+Phase 9C-0 구현: schema migration과 분리한 versioned JSON 연구 사전과 원자적 bootstrap
+Service를 제공한다. 실제 70개 저장 leaf와 qualified alias, 확인된 단위만 등록하며 동일 정의는
+재사용하고 충돌은 전체 rollback한다. 승인 internal name을 현재 dictionary ID로 해석하는
+deny-by-default 상세 표시 정책 기반을 제공한다. Phase 9C 상세 GUI 자체는 후속 작업이다.
+
 ### 목표
 
 연구자가 코드 없이 DB를 조회하고 검토할 수 있게 한다.

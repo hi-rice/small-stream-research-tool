@@ -21,6 +21,7 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 "small_stream_research_tool.database" = ["migrations/*.sql"]
+"small_stream_research_tool" = ["resources/*.json"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

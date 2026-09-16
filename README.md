@@ -26,6 +26,7 @@ Phase 8C는 특성값 비활성화·복원과 현재값 참조 캐시 재구축 
 Phase 8 Final Gate는 Phase 7 QC와 Phase 8A/B/C의 합성 DB lifecycle 통합 검증을 통과했다.
 Phase 9A는 GUI 없이 목록·검색·페이지·기본 상세·현재값/QC/출처의 안전한 조회 backend를 제공한다.
 Phase 9B는 로컬 로그인·앱 shell·소하천 목록 GUI를 제공한다. 상세·홈·이력·분석은 아직 미구현이다.
+Phase 9C-0는 상세 조회 전에 사용할 운영 연구 사전을 versioned manifest로 bootstrap한다.
 
 ## 환경과 의존성
 
@@ -1162,3 +1163,22 @@ ERROR, 활성 WARNING/INFO의 NEEDS_REVIEW, 활성 issue가 없는 ACTIVE_ISSUES
 허용된 서버 정렬을 사용한다. 목록 상태는 오류/확인 필요/활성 문제 없음으로 표시하며 마지막은
 QC 완료를 뜻하지 않는다. Qt worker마다 자체 SQLite 연결을 만들고 닫으며 요청 번호가 지난
 결과는 화면에 반영하지 않는다. 조회 화면의 SQL·Repository 접근과 특성값 변경 기능은 없다.
+
+## Phase 9C-0 Research Dictionary Bootstrap
+
+`resources/research_dictionary_v1.json`은 24개 상위 특성 개념의 실제 저장 leaf와 기점·종점
+계획정보를 분리해 정의한다. 토지이용 32개 원본 분류를 합치지 않으며 전체 70개 leaf,
+5개 category, Excel에서 확인된 6개 unit, Phase 3의 ` | ` flattening과 호환되는 70개
+qualified alias를 포함한다. 대표6·전국분석9 표시는 연구 우선순위 metadata이고
+`analyzable`과 별개다.
+
+`ResearchDictionaryBootstrapService.bootstrap()`은 manifest의 canonical JSON SHA-256을
+`dictionary_version.description`에 기록한다. 기존 동일 정의는 재사용하고 internal name의
+의미·자료형·단위·category 또는 alias 대상이 다르면 덮어쓰지 않고 전체 transaction을
+rollback한다. 단위 차원과 미확정 단위는 추정하지 않고, unit conversion·QC rule·특성값·
+현재 사용값을 생성하거나 변경하지 않는다.
+
+`approved_display_policy()`는 승인된 internal name을 현재 활성·미폐기 사전 ID로 해석해
+Phase 9A의 deny-by-default `CharacteristicDisplayPolicy`로 반환한다. bootstrap 전에는 빈
+허용 목록이다. 서비스 Key, IP, CCTV/RTSP, 연락처와 인증정보는 manifest에 포함하지 않는다.
+Phase 9C 상세 GUI는 아직 구현하지 않았다.
