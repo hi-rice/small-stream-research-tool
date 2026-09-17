@@ -27,6 +27,11 @@ Phase 8 Final Gate는 Phase 7 QC와 Phase 8A/B/C의 합성 DB lifecycle 통합 �
 Phase 9A는 GUI 없이 목록·검색·페이지·기본 상세·현재값/QC/출처의 안전한 조회 backend를 제공한다.
 Phase 9B는 로컬 로그인·앱 shell·소하천 목록 GUI를 제공한다. 상세·홈·이력·분석은 아직 미구현이다.
 Phase 9C-0는 상세 조회 전에 사용할 운영 연구 사전을 versioned manifest로 bootstrap한다.
+Phase 9C는 목록에서 관리코드로 다시 조회하는 읽기 전용 상세 화면을 제공한다. 기본정보·좌표,
+category별 70개 승인 특성, 현재 사용값 상태, 활성 QC·검토상태, 안전한 출처와 값 이력을 표시한다.
+Phase 9C-UI는 Figma 09 화면에 맞춰 240px sidebar, 58px topbar, 조밀한 검색 영역,
+목록과 선택 요약 패널 및 상세 화면의 색상·간격·타이포그래피를 정렬했다.
+Phase 9D 홈·작업이력·마이페이지와 Phase 9 Final Gate는 아직 남아 있다.
 
 ## 환경과 의존성
 
@@ -1151,7 +1156,7 @@ page_size(1~100), 관리코드 정확/접두 또는 하천명 부분 검색, 시
 ERROR, 활성 WARNING/INFO의 NEEDS_REVIEW, 활성 issue가 없는 ACTIVE_ISSUES_NONE으로 구분하며
 마지막 상태는 검사 완료를 증명하지 않는다. 조회는 SQLite read snapshot에서 SELECT만 수행하고
 불일치를 자동 수리하지 않는다. Phase 9B에서 PySide6 앱 shell·로그인·목록 GUI를 연결했다.
-9C 상세 GUI, 9D 홈·이력·마이페이지와 최종 Gate는 아직 남아 있다.
+9C 상세 GUI를 제공하며, 9D 홈·이력·마이페이지와 최종 Gate는 아직 남아 있다.
 
 ## Phase 9B 목록 GUI
 
@@ -1181,4 +1186,26 @@ rollback한다. 단위 차원과 미확정 단위는 추정하지 않고, unit c
 `approved_display_policy()`는 승인된 internal name을 현재 활성·미폐기 사전 ID로 해석해
 Phase 9A의 deny-by-default `CharacteristicDisplayPolicy`로 반환한다. bootstrap 전에는 빈
 허용 목록이다. 서비스 Key, IP, CCTV/RTSP, 연락처와 인증정보는 manifest에 포함하지 않는다.
-Phase 9C 상세 GUI는 아직 구현하지 않았다.
+Phase 9C-0 자체는 상세 GUI를 만들지 않았고, 이어진 Phase 9C에서 이를 연결했다.
+
+Phase 9C 상세 화면은 연구 사전이 초기화된 DB에서 승인 internal name을 활성 사전 ID로
+batch 해석한다. 사전 미초기화, 현재값 미지정, 캐시 불일치, 활성 문제 없음, 조회 실패를
+서로 다른 상태로 표시한다. 원본값·절대경로·raw QC message·내부 ID는 표시하지 않으며
+화면에서 값·QC·사전·current-use를 변경할 수 없다. 특성·QC·출처·값 이력은 항목별 SQL이
+아닌 bounded batch 조회를 사용한다.
+
+## Phase 9C UI smoke DB
+
+실제 로컬 DB와 분리된 합성 화면 검수 DB는 개발 전용 `tools/ui_smoke.py`로 만든다. 이 도구는
+저장소의 `build` 폴더 바로 아래에 있는 `*ui_smoke*.db` 경로만 허용하며 기존 파일과 기본
+로컬 DB를 덮어쓰지 않는다. 공식 `research-dictionary-v1`, 합성 소하천 5개, 화면 확인용
+특성값·QC·출처를 만들고 실제 연구 Excel이나 기존 계정을 복사하지 않는다.
+
+```powershell
+.\.venv\Scripts\python.exe tools\ui_smoke.py create --db build\ui_smoke.db
+.\.venv\Scripts\python.exe tools\ui_smoke.py run --db build\ui_smoke.db
+```
+
+첫 실행에서는 기존 최초 사용자 등록 화면에서 smoke DB 전용 계정을 만든다. 등록 직후 기존
+Phase 8 Service로 합성 current-use와 보정 이력을 완성하며, 이후 같은 `run` 명령으로 로그인한다.
+생성된 `build/ui_smoke.db`는 Git에서 제외되는 일회성 산출물이다.

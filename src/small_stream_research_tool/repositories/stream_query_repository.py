@@ -118,7 +118,8 @@ class StreamQueryRepository:
         rows = self._rows(
             "SELECT stream_code,stream_name,COALESCE(province_name,province_code),"
             "COALESCE(city_county_name,city_county_code),COALESCE(town_name,town_code),"
-            "river_system,source_address,end_address,is_active "
+            "river_system,source_address,end_address,source_latitude,source_longitude,"
+            "end_latitude,end_longitude,is_active "
             "FROM small_stream WHERE stream_code=?",
             (stream_code,),
         )
@@ -133,6 +134,37 @@ class StreamQueryRepository:
             "WHERE d.dictionary_id IN (" + _marks(dictionary_ids) + ") "
             "ORDER BY d.dictionary_id",
             dictionary_ids,
+        )
+
+    def dictionary_items_detail(self, dictionary_ids):
+        if not dictionary_ids:
+            return ()
+        return self._rows(
+            "SELECT d.dictionary_id,d.internal_name,d.standard_name,d.data_type,"
+            "c.category_key,c.category_name,u.unit_symbol "
+            "FROM data_dictionary d JOIN data_category c ON c.category_id=d.category_id "
+            "LEFT JOIN unit_dictionary u ON u.unit_id=d.unit_id "
+            "WHERE d.is_active=1 AND d.deprecated_version_id IS NULL "
+            "AND c.is_active=1 AND d.dictionary_id IN (" + _marks(dictionary_ids) + ") "
+            "ORDER BY c.sort_order,d.dictionary_id",
+            dictionary_ids,
+        )
+
+    def research_version_description(self, version):
+        rows = self._rows("SELECT description FROM dictionary_version WHERE version=?", (version,))
+        return rows[0][0] if rows else None
+
+    def dictionary_items_by_internal_names(self, internal_names):
+        if not internal_names:
+            return ()
+        return self._rows(
+            "SELECT d.dictionary_id,d.internal_name,d.standard_name,d.data_type,"
+            "d.analyzable,d.is_active,d.deprecated_version_id,c.category_key,c.is_active,"
+            "u.unit_symbol,u.is_active "
+            "FROM data_dictionary d JOIN data_category c ON c.category_id=d.category_id "
+            "LEFT JOIN unit_dictionary u ON u.unit_id=d.unit_id "
+            "WHERE d.internal_name IN (" + _marks(internal_names) + ")",
+            internal_names,
         )
 
     def active_representatives(self, stream_code, dictionary_ids):
@@ -172,6 +204,31 @@ class StreamQueryRepository:
             + _marks(value_ids)
             + ") GROUP BY characteristic_value_id",
             value_ids,
+        )
+
+    def active_value_issue_details(self, value_ids):
+        if not value_ids:
+            return ()
+        return self._rows(
+            "SELECT characteristic_value_id,issue_type,severity,review_status,is_active "
+            "FROM data_quality_issue WHERE is_active=1 AND characteristic_value_id IN ("
+            + _marks(value_ids)
+            + ") ORDER BY characteristic_value_id,issue_id",
+            value_ids,
+        )
+
+    def values_for_items(self, stream_code, dictionary_ids):
+        if not dictionary_ids:
+            return ()
+        return self._rows(
+            "SELECT v.characteristic_value_id,v.dictionary_id,v.value_number,v.value_integer,"
+            "v.value_text,v.value_date,u.unit_symbol,v.source_type,v.is_active,"
+            "v.is_representative,v.created_at,h.batch_code,v.source_row "
+            "FROM characteristic_value v LEFT JOIN unit_dictionary u ON u.unit_id=v.unit_id "
+            "LEFT JOIN import_history h ON h.import_id=v.import_id "
+            "WHERE v.stream_code=? AND v.dictionary_id IN (" + _marks(dictionary_ids) + ") "
+            "ORDER BY v.dictionary_id,v.created_at DESC,v.characteristic_value_id DESC",
+            (stream_code, *dictionary_ids),
         )
 
     def provenance(self, value_ids):

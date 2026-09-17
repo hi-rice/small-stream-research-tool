@@ -658,17 +658,25 @@ Phase 8 완료 기준을 충족하여 Phase 9 진입이 가능하다. Phase 9 �
 00 로그인·최초 사용자 등록, 01 홈, 09 소하천 조회, 14 작업이력, 15 마이페이지를 기존 Service에 연결한다. 최근 작업은 record_history를 공유한다.
 
 Phase 9A Read/Query Backend 완료: 목록 검색·지역 코드 필터·정렬·DB pagination과 제한된
-상세/현재값/QC/출처 표시 모델을 제공한다. Phase 9B 앱 shell·로그인·목록 GUI는 구현했고, 9C 상세 GUI,
-9D 홈·작업이력·마이페이지와 Phase 9 Final Gate는 후속 작업이다. Phase 9 전체는 미완료다.
+상세/현재값/QC/출처 표시 모델을 제공한다. Phase 9B 앱 shell·로그인·목록 GUI와 9C 상세 GUI를
+구현했고, 9D 홈·작업이력·마이페이지와 Phase 9 Final Gate는 후속 작업이다. Phase 9 전체는 미완료다.
 
 Phase 9B 구현: PySide6 앱 시작·최초 사용자 등록/로그인·로그아웃·앱 shell과 09 소하천
 목록의 검색·지역 연동 필터·서버 정렬·DB 페이지 조회를 연결했다. 지역 선택지는 조회 Service가
-활성 소하천의 실제 코드/명칭을 읽는다. 9C 상세와 9D 홈·이력·마이페이지 및 최종 Gate는 남아 있다.
+활성 소하천의 실제 코드/명칭을 읽는다. 9C 상세는 후속 단계에서 구현했으며,
+9D 홈·이력·마이페이지 및 최종 Gate는 남아 있다.
 
 Phase 9C-0 구현: schema migration과 분리한 versioned JSON 연구 사전과 원자적 bootstrap
 Service를 제공한다. 실제 70개 저장 leaf와 qualified alias, 확인된 단위만 등록하며 동일 정의는
 재사용하고 충돌은 전체 rollback한다. 승인 internal name을 현재 dictionary ID로 해석하는
 deny-by-default 상세 표시 정책 기반을 제공한다. Phase 9C 상세 GUI 자체는 후속 작업이다.
+
+Phase 9C 구현: 목록 선택의 관리코드로 상세를 다시 조회하고 기본정보·좌표, 연구 사전의
+category별 승인 특성, 유효한 현재 사용값, 활성 QC와 별도 검토상태, 제한된 출처 및 값 이력을
+읽기 전용으로 표시한다. batch 조회와 worker별 SQLite 연결, stale 응답 차단을 유지한다.
+Phase 9C-UI는 Figma 09 정보구조에 맞춰 앱 shell, 검색·목록, 선택 요약 및 상세 presentation을
+정렬했다. 기존 조회 Service와 domain 상태 문구는 유지하며 미구현 분석·내보내기 동작은 연결하지 않는다.
+Phase 9D 홈·작업이력·마이페이지와 Phase 9 Final Gate는 남아 있다.
 
 ### 목표
 

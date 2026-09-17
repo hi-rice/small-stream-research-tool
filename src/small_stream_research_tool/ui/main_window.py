@@ -1,7 +1,8 @@
-"""Phase 9B 앱 shell. 소하천 목록만 실제 메뉴에 연결한다."""
+"""Figma shell에 맞춘 앱 창. 구현된 소하천 조회만 실제 화면에 연결한다."""
 
-from PySide6.QtCore import Signal
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
+    QFrame,
     QHBoxLayout,
     QLabel,
     QMainWindow,
@@ -11,21 +12,16 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from small_stream_research_tool.ui.stream_detail import StreamDetailView
 from small_stream_research_tool.ui.stream_list import StreamListView
 
-NAVIGATION = (
-    "홈",
-    "Excel 가져오기",
-    "품질검사(QC)",
-    "특성정보 보정 관리",
-    "소하천 조회",
-    "DB 관리",
-    "기초통계",
-    "그래프 분석",
-    "결과 내보내기",
-    "작업이력",
-    "설정",
+NAVIGATION_SECTIONS = (
+    (None, ("홈",)),
+    ("데이터 관리", ("Excel 가져오기", "품질검사(QC)", "특성정보 보정", "소하천 조회", "DB 관리")),
+    ("분석", ("기초통계", "그래프 분석")),
+    (None, ("결과 내보내기", "작업이력")),
 )
+NAVIGATION = tuple(name for _section, names in NAVIGATION_SECTIONS for name in names) + ("설정",)
 
 
 class MainWindow(QMainWindow):
@@ -36,44 +32,22 @@ class MainWindow(QMainWindow):
         self.session = session
         self.setWindowTitle("소하천 데이터 관리")
         self.resize(1440, 900)
+        self.setMinimumSize(900, 600)
         root = QWidget()
         self.setCentralWidget(root)
-        vertical = QVBoxLayout(root)
-        vertical.setContentsMargins(0, 0, 0, 0)
-        top = QHBoxLayout()
-        top.setContentsMargins(24, 12, 24, 12)
-        title = QLabel("소하천 데이터 관리")
-        title.setObjectName("pageTitle")
-        top.addWidget(title)
-        top.addStretch()
-        identity = session.display_name
-        if session.department:
-            identity += " · " + session.department
-        top.addWidget(QLabel(identity))
-        logout = QPushButton("로그아웃")
-        logout.clicked.connect(self.logout_requested)
-        top.addWidget(logout)
-        vertical.addLayout(top)
-        body = QHBoxLayout()
-        body.setSpacing(0)
-        navigation = QWidget()
-        navigation.setFixedWidth(215)
-        nav_layout = QVBoxLayout(navigation)
-        nav_layout.setContentsMargins(12, 12, 12, 12)
-        nav_layout.setSpacing(5)
-        self.nav_buttons = {}
-        for name in NAVIGATION:
-            button = QPushButton(name)
-            button.setObjectName("navButton")
-            button.clicked.connect(lambda _checked=False, target=name: self.navigate(target))
-            nav_layout.addWidget(button)
-            self.nav_buttons[name] = button
-        nav_layout.addStretch()
-        body.addWidget(navigation)
+        shell = QHBoxLayout(root)
+        shell.setContentsMargins(0, 0, 0, 0)
+        shell.setSpacing(0)
+        shell.addWidget(self._sidebar())
+        workspace = QWidget()
+        workspace_layout = QVBoxLayout(workspace)
+        workspace_layout.setContentsMargins(0, 0, 0, 0)
+        workspace_layout.setSpacing(0)
+        workspace_layout.addWidget(self._topbar())
         self.stack = QStackedWidget()
         self.placeholder = QWidget()
         placeholder_layout = QVBoxLayout(self.placeholder)
-        placeholder_layout.setContentsMargins(34, 34, 34, 34)
+        placeholder_layout.setContentsMargins(40, 32, 40, 32)
         self.placeholder_title = QLabel("")
         self.placeholder_title.setObjectName("pageTitle")
         placeholder_layout.addWidget(self.placeholder_title)
@@ -82,9 +56,82 @@ class MainWindow(QMainWindow):
         self.stack.addWidget(self.placeholder)
         self.stream_list = StreamListView(db_path)
         self.stack.addWidget(self.stream_list)
-        body.addWidget(self.stack, 1)
-        vertical.addLayout(body, 1)
+        self.stream_detail = StreamDetailView(db_path)
+        self.stack.addWidget(self.stream_detail)
+        self.stream_list.detail_requested.connect(self.show_stream_detail)
+        self.stream_detail.back_requested.connect(lambda: self.navigate("소하천 조회"))
+        workspace_layout.addWidget(self.stack, 1)
+        shell.addWidget(workspace, 1)
         self.navigate("소하천 조회")
+
+    def _sidebar(self):
+        sidebar = QWidget()
+        sidebar.setObjectName("sidebar")
+        sidebar.setFixedWidth(228)
+        layout = QVBoxLayout(sidebar)
+        layout.setContentsMargins(12, 17, 12, 12)
+        layout.setSpacing(1)
+        agency = QLabel("NDMI")
+        agency.setObjectName("brandAgency")
+        title = QLabel("소하천 데이터 관리")
+        title.setObjectName("brandTitle")
+        layout.addWidget(agency)
+        layout.addWidget(title)
+        layout.addSpacing(14)
+        self.nav_buttons = {}
+        for section, names in NAVIGATION_SECTIONS:
+            if section:
+                heading = QLabel(section)
+                heading.setObjectName("navSection")
+                layout.addWidget(heading)
+            for name in names:
+                self._add_nav(layout, name)
+            layout.addSpacing(4)
+        layout.addStretch()
+        divider = QFrame()
+        divider.setFrameShape(QFrame.Shape.HLine)
+        divider.setStyleSheet("color: #38506A; background: #38506A;")
+        layout.addWidget(divider)
+        self._add_nav(layout, "설정")
+        return sidebar
+
+    def _add_nav(self, layout, name):
+        button = QPushButton(name)
+        button.setObjectName("navButton")
+        button.setCursor(Qt.CursorShape.PointingHandCursor)
+        button.clicked.connect(lambda _checked=False, target=name: self.navigate(target))
+        layout.addWidget(button)
+        self.nav_buttons[name] = button
+
+    def _topbar(self):
+        topbar = QWidget()
+        topbar.setObjectName("topbar")
+        topbar.setFixedHeight(58)
+        layout = QHBoxLayout(topbar)
+        layout.setContentsMargins(32, 7, 22, 7)
+        dot = QLabel("●")
+        dot.setObjectName("databaseDot")
+        dot.setToolTip("현재 로컬 SQLite 데이터베이스를 사용합니다.")
+        database = QLabel("로컬 데이터베이스")
+        database.setObjectName("databaseState")
+        layout.addWidget(dot)
+        layout.addWidget(database)
+        layout.addStretch()
+        identity = QVBoxLayout()
+        identity.setSpacing(0)
+        self.user_name = QLabel(self.session.display_name)
+        self.user_name.setAlignment(Qt.AlignmentFlag.AlignRight)
+        self.user_department = QLabel(self.session.department or "부서 미등록")
+        self.user_department.setObjectName("secondaryText")
+        self.user_department.setAlignment(Qt.AlignmentFlag.AlignRight)
+        identity.addWidget(self.user_name)
+        identity.addWidget(self.user_department)
+        layout.addLayout(identity)
+        self.logout_button = QPushButton("로그아웃")
+        self.logout_button.setObjectName("compactButton")
+        self.logout_button.clicked.connect(self.logout_requested)
+        layout.addWidget(self.logout_button)
+        return topbar
 
     def navigate(self, name):
         for key, button in self.nav_buttons.items():
@@ -97,6 +144,11 @@ class MainWindow(QMainWindow):
             self.placeholder_title.setText(name)
             self.stack.setCurrentWidget(self.placeholder)
 
+    def show_stream_detail(self, stream_code):
+        self.stack.setCurrentWidget(self.stream_detail)
+        self.stream_detail.load_stream(stream_code)
+
     def closeEvent(self, event):
         self.stream_list._closed = True
+        self.stream_detail._closed = True
         super().closeEvent(event)

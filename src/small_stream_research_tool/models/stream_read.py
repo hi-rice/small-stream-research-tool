@@ -55,6 +55,10 @@ class StreamBasicDetail:
     river_system: str | None
     source_address: str | None = field(repr=False)
     end_address: str | None = field(repr=False)
+    source_latitude: float | None = None
+    source_longitude: float | None = None
+    end_latitude: float | None = None
+    end_longitude: float | None = None
     is_active: bool = True
     qc_display_state: str = "ACTIVE_ISSUES_NONE"
 
@@ -79,6 +83,51 @@ class CharacteristicSummary:
     unit_display: str | None = None
     qc_display_state: str | None = None
     provenance: ProvenanceSummary | None = field(default=None, repr=False)
+
+
+@dataclass(frozen=True)
+class QCDisplayItem:
+    issue_type: str
+    severity: str
+    review_status: str
+    description: str
+    is_active: bool
+
+
+@dataclass(frozen=True)
+class ValueHistoryDisplayRow:
+    value: int | float | str
+    unit_display: str | None
+    source_classification: str
+    is_active: bool
+    is_current_use: bool
+    created_at: str
+    provenance_summary: str
+
+
+@dataclass(frozen=True)
+class CharacteristicDetailRow:
+    dictionary_id: int = field(repr=False)
+    internal_name: str
+    standard_name: str
+    category_key: str
+    category_name: str
+    current_use_status: str
+    current_value: int | float | str | None = field(repr=False)
+    unit_display: str | None = None
+    qc_display_state: str | None = None
+    provenance: ProvenanceSummary | None = field(default=None, repr=False)
+    representative_six: bool = False
+    focus_nine: bool = False
+    qc_items: tuple[QCDisplayItem, ...] = ()
+    value_history: tuple[ValueHistoryDisplayRow, ...] = field(default=(), repr=False)
+
+
+@dataclass(frozen=True)
+class StreamResearchDetail:
+    basic: StreamBasicDetail
+    dictionary_state: str
+    characteristics: tuple[CharacteristicDetailRow, ...]
 
 
 @dataclass(frozen=True)

@@ -8,8 +8,8 @@ from dataclasses import fields
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 import pytest
-from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QApplication, QLineEdit
+from PySide6.QtCore import QPoint, Qt
+from PySide6.QtWidgets import QApplication, QLabel, QLineEdit, QWidget
 
 from small_stream_research_tool.app.controller import ApplicationController, GuiSession
 from small_stream_research_tool.database import connect_database
@@ -20,7 +20,9 @@ from small_stream_research_tool.repositories.import_persistence_repository impor
     SmallStreamRepository,
 )
 from small_stream_research_tool.services.stream_read_service import StreamReadService
+from small_stream_research_tool.ui.main_window import NAVIGATION_SECTIONS
 from small_stream_research_tool.ui.presentation import HEADERS, display_row
+from small_stream_research_tool.ui.theme import COLORS
 
 STAMP = "2026-09-13T01:02:03Z"
 
@@ -95,10 +97,55 @@ def test_initial_setup_login_failure_success_and_logout(controller, app):
     assert controller.main_window.isVisible()
     assert controller.session.display_name == "Synthetic Researcher"
     assert controller.session.department == "Synthetic Team"
+    assert controller.main_window.user_name.text() == "Synthetic Researcher"
+    assert controller.main_window.user_department.text() == "Synthetic Team"
+    assert controller.main_window.logout_button.text() == "로그아웃"
     assert {f.name for f in fields(GuiSession)} == {"user_id", "display_name", "department", "role"}
     controller.main_window.logout_requested.emit()
     app.processEvents()
     assert controller.session is None and controller.login_window.isVisible()
+
+
+@pytest.mark.parametrize(
+    ("login_id", "password", "display_name", "expected"),
+    [
+        ("bad id", "synthetic-password", "Synthetic", "영문·숫자"),
+        ("valid.user", "short", "Synthetic", "15자 이상"),
+        ("valid.user", "synthetic-password", "   ", "표시명은 필수"),
+    ],
+)
+def test_initial_registration_shows_safe_validation_detail(
+    controller, app, login_id, password, display_name, expected
+):
+    controller.start()
+    setup = controller.login_window
+    setup.login_id.setText(login_id)
+    setup.password.setText(password)
+    setup.display_name.setText(display_name)
+    setup.submit.click()
+    app.processEvents()
+    assert setup.initial_setup and setup.isVisible()
+    assert expected in setup.error.text()
+    assert setup.password.text() == ""
+    assert controller.auth_service.needs_initial_user_setup()
+
+
+def test_initial_registration_allows_empty_optional_department(controller, app):
+    controller.start()
+    setup = controller.login_window
+    setup.login_id.setText("optional.user")
+    setup.password.setText("synthetic-password")
+    setup.display_name.setText("Synthetic Researcher")
+    setup.department.setText("   ")
+    setup.submit.click()
+    app.processEvents()
+    login = controller.login_window
+    assert not login.initial_setup
+    login.login_id.setText("optional.user")
+    login.password.setText("synthetic-password")
+    login.submit.click()
+    wait_for(app, lambda: controller.main_window is not None)
+    assert controller.session.department is None
 
 
 def test_list_navigation_search_regions_sort_pages_and_selection(controller, app):
@@ -120,6 +167,9 @@ def test_list_navigation_search_regions_sort_pages_and_selection(controller, app
     assert HEADERS[0] == "소하천 관리코드"
     view.table.selectRow(0)
     assert view.selected_code == view.model.stream_code(0)
+    wait_for(app, lambda: view.summary_name.text() == "Synthetic 000")
+    assert view.summary_code.text().endswith(view.selected_code)
+    assert view.detail_button.isEnabled()
     window.navigate("홈")
     assert window.stack.currentWidget() is window.placeholder
     assert window.placeholder_title.text() == "홈"
@@ -139,6 +189,8 @@ def test_list_navigation_search_regions_sort_pages_and_selection(controller, app
     view.search_button.click()
     wait_for(app, lambda: "조건에 맞는" in view.status.text())
     assert view.model.rowCount() == 0
+    assert view.page_label.text() == "0 / 0 페이지 · 0건"
+    assert view.empty_state.isVisible()
     view.search.clear()
     view.apply_search()
     wait_for(app, lambda: view.model.rowCount() == 50)
@@ -202,3 +254,120 @@ def test_region_option_service_obeys_parent_codes(controller):
         ] == ["567"]
         with pytest.raises(InvalidStreamReadRequest):
             service.region_options("town", city_county_code="235")
+
+
+def test_figma_shell_sections_active_navigation_and_search_contract(controller, app):
+    controller.auth_service.create_user("synthetic_actor", "synthetic-password", "Synthetic")
+    controller.start()
+    login = controller.login_window
+    assert login.minimumWidth() >= 720
+    assert login.findChildren(QLabel)
+    login.login_id.setText("synthetic_actor")
+    login.password.setText("synthetic-password")
+    login.submit.click()
+    window = controller.main_window
+    view = window.stream_list
+    wait_for(app, lambda: "조건에 맞는" in view.status.text())
+    assert window.centralWidget().findChild(QWidget, "sidebar").width() == 228
+    assert window.centralWidget().findChild(QWidget, "topbar").height() == 58
+    assert tuple(section for section, _items in NAVIGATION_SECTIONS if section) == (
+        "데이터 관리",
+        "분석",
+    )
+    assert "컬럼 매핑" not in window.nav_buttons
+    assert "Import Preview" not in window.nav_buttons
+    assert window.nav_buttons["소하천 조회"].objectName() == "navSelected"
+    assert COLORS["sidebar"] == "#0F2740" and COLORS["primary"] == "#2F6FED"
+    assert view.name_search.placeholderText() == "소하천명 검색"
+    assert view.code_search.placeholderText() == "11자리 관리코드 검색"
+    view.name_search.setText("Synthetic")
+    view.code_search.setText("01234567001")
+    view.code_search.textEdited.emit(view.code_search.text())
+    assert not view.name_search.text()
+
+
+def test_stream_list_adapts_wide_compact_and_back_without_losing_selection(controller, app):
+    controller.auth_service.create_user("synthetic_actor", "synthetic-password", "Synthetic")
+    seed(controller.db_path, count=5)
+    controller.start()
+    login = controller.login_window
+    login.login_id.setText("synthetic_actor")
+    login.password.setText("synthetic-password")
+    login.submit.click()
+    window = controller.main_window
+    view = window.stream_list
+    window.resize(1440, 900)
+    window.show()
+    wait_for(app, lambda: view.model.rowCount() == 5)
+    assert view._layout_mode == "wide"
+    assert view.result_layout.getItemPosition(view.result_layout.indexOf(view.summary_panel))[
+        :2
+    ] == (
+        0,
+        1,
+    )
+    assert view.workspace_scroll.horizontalScrollBar().maximum() == 0
+    view.table.selectRow(2)
+    wait_for(app, lambda: view.detail_button.isEnabled())
+    selected = view.selected_code
+
+    window.resize(1200, 800)
+    app.processEvents()
+    assert view._layout_mode == "compact"
+    assert view.result_layout.getItemPosition(view.result_layout.indexOf(view.summary_panel))[
+        :2
+    ] == (
+        0,
+        1,
+    )
+    assert view.filter_layout.getItemPosition(view.filter_layout.indexOf(view.name_search))[0] == 1
+    assert view.selected_code == selected
+    assert not view.detail_button.isHidden()
+    assert view.summary_panel.parentWidget() is view.result_workspace
+    workspace_bar = view.workspace_scroll.horizontalScrollBar()
+    assert workspace_bar.maximum() > 0
+    workspace_bar.setValue(workspace_bar.maximum())
+    app.processEvents()
+    summary_left = view.summary_panel.mapTo(view.workspace_scroll.viewport(), QPoint()).x()
+    button_left = view.detail_button.mapTo(view.workspace_scroll.viewport(), QPoint()).x()
+    assert summary_left < view.workspace_scroll.viewport().width()
+    assert summary_left + view.summary_panel.width() > 0
+    assert button_left < view.workspace_scroll.viewport().width()
+    assert button_left + view.detail_button.width() > 0
+    assert view.scroll_area.horizontalScrollBar().maximum() == 0
+
+    window.resize(1080, 640)
+    app.processEvents()
+    assert view._layout_mode == "compact"
+    assert view.workspace_scroll.horizontalScrollBar().maximum() > 0
+    assert view.result_layout.getItemPosition(view.result_layout.indexOf(view.summary_panel))[
+        :2
+    ] == (0, 1)
+
+    window.resize(window.minimumWidth(), window.minimumHeight())
+    app.processEvents()
+    assert window.size().width() >= 900 and window.size().height() >= 600
+    assert view._layout_mode == "narrow"
+    assert not view.summary_name.isHidden()
+    assert not view.detail_button.isHidden()
+    minimum_bar = view.workspace_scroll.horizontalScrollBar()
+    assert minimum_bar.maximum() > 0
+    minimum_bar.setValue(minimum_bar.maximum())
+    app.processEvents()
+    minimum_button_left = view.detail_button.mapTo(view.workspace_scroll.viewport(), QPoint()).x()
+    assert 0 <= minimum_button_left < view.workspace_scroll.viewport().width()
+    assert view.scroll_area.horizontalScrollBar().maximum() == 0
+
+    window.resize(1440, 900)
+    app.processEvents()
+    assert view._layout_mode == "wide"
+    assert view.selected_code == selected
+    assert view.summary_panel.parentWidget() is view.result_workspace
+    assert not view.summary_panel.isHidden()
+    assert view.workspace_scroll.horizontalScrollBar().maximum() == 0
+    assert view.result_layout.getItemPosition(view.result_layout.indexOf(view.summary_panel))[
+        :2
+    ] == (
+        0,
+        1,
+    )
