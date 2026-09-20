@@ -29,6 +29,18 @@ SOURCE_TEXT = {
     "OTHER_SOURCE": "기타 등록 자료",
 }
 SEVERITY_TEXT = {"ERROR": "오류", "WARNING": "경고", "INFO": "정보"}
+DICTIONARY_STATE_TEXT = {
+    "READY": "연구 사전 준비됨",
+    "NOT_INITIALIZED": "연구 사전 미초기화",
+    "INCONSISTENT": "연구 사전 확인 필요",
+}
+HISTORY_EVENT_TEXT = {
+    "CORRECTION": "연구자 보정",
+    "CURRENT_VALUE_CHANGE": "현재 사용값 변경",
+    "DEACTIVATE": "특성값 비활성화",
+    "RESTORE": "특성값 복원",
+    "CACHE_REBUILD": "현재값 캐시 재구축",
+}
 
 
 def display_row(row: StreamListRow) -> tuple[str, ...]:
@@ -57,3 +69,12 @@ def display_timestamp(value: str | None) -> str:
     if parsed.utcoffset() is None:
         return parsed.strftime("%Y-%m-%d %H:%M")
     return parsed.strftime("%Y-%m-%d %H:%M UTC")
+
+
+def display_history_target(item) -> str:
+    """공개 projection만으로 작업 대상을 구성한다."""
+    if item.target_state != "RESOLVED":
+        return "대상 정보 확인 필요"
+    stream = item.stream_name or item.stream_code or "소하천 정보 확인 필요"
+    characteristic = item.dictionary_standard_name or "특성항목 정보 확인 필요"
+    return f"{stream} · {characteristic}"

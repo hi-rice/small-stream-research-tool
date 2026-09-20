@@ -25,7 +25,7 @@ Phase 8A는 명시적 현재값 선택, Phase 8B는 새 USER_CORRECTION 값 생�
 Phase 8C는 특성값 비활성화·복원과 현재값 참조 캐시 재구축 백엔드를 제공한다.
 Phase 8 Final Gate는 Phase 7 QC와 Phase 8A/B/C의 합성 DB lifecycle 통합 검증을 통과했다.
 Phase 9A는 GUI 없이 목록·검색·페이지·기본 상세·현재값/QC/출처의 안전한 조회 backend를 제공한다.
-Phase 9B는 로컬 로그인·앱 shell·소하천 목록 GUI를 제공한다. 상세·홈·이력·분석은 아직 미구현이다.
+Phase 9B는 로컬 로그인·앱 shell·소하천 목록 GUI를 제공하고 Phase 9C는 상세 GUI를 제공한다.
 Phase 9C-0는 상세 조회 전에 사용할 운영 연구 사전을 versioned manifest로 bootstrap한다.
 Phase 9C는 목록에서 관리코드로 다시 조회하는 읽기 전용 상세 화면을 제공한다. 기본정보·좌표,
 category별 70개 승인 특성, 현재 사용값 상태, 활성 QC·검토상태, 안전한 출처와 값 이력을 표시한다.
@@ -34,7 +34,8 @@ Phase 9C-UI는 Figma 09 화면에 맞춰 240px sidebar, 58px topbar, 조밀한 �
 Phase 9D-1은 GUI 없이 Home·작업이력·마이페이지가 공유하는 읽기 전용 projection backend를
 제공한다. Home 집계, 실제 record_history event의 안전한 대상 해석, 공개 사용자 profile과
 bounded 최근 이력을 제공하며 raw JSON·내부 ID·password hash·절대경로는 반환하지 않는다.
-Phase 9D Home·작업이력·마이페이지 GUI와 Phase 9 Final Gate는 아직 남아 있다.
+Phase 9D-2는 로그인 후 Home에 활성 소하천·QC 집계·연구 사전 상태와 최근 5개 작업을
+읽기 전용으로 표시한다. 작업이력 전체 화면·마이페이지 GUI와 Phase 9 Final Gate는 아직 남아 있다.
 
 ## 환경과 의존성
 
@@ -1159,9 +1160,11 @@ page_size(1~100), 관리코드 정확/접두 또는 하천명 부분 검색, 시
 ERROR, 활성 WARNING/INFO의 NEEDS_REVIEW, 활성 issue가 없는 ACTIVE_ISSUES_NONE으로 구분하며
 마지막 상태는 검사 완료를 증명하지 않는다. 조회는 SQLite read snapshot에서 SELECT만 수행하고
 불일치를 자동 수리하지 않는다. Phase 9B에서 PySide6 앱 shell·로그인·목록 GUI를 연결했다.
-9C 상세 GUI를 제공하며, 9D 홈·이력·마이페이지와 최종 Gate는 아직 남아 있다.
+9C 상세 GUI와 9D-2 Home GUI를 제공하며, 작업이력 전체 화면·마이페이지와 최종 Gate는 남아 있다.
 9D-1 read backend는 활성 소하천 수, 활성 QC 오류/확인 필요 소하천 수, 연구 사전 상태,
 bounded 최근 작업이력과 안전한 공개 사용자 profile을 DB SELECT projection으로 제공한다.
+Phase 9D-2 Home GUI는 이 projection만 비동기로 조회하며 작업이력 전체 화면·마이페이지 GUI와
+Phase 9 Final Gate는 아직 남아 있다.
 
 ## Phase 9B 목록 GUI
 

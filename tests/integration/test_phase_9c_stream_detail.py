@@ -365,6 +365,7 @@ def test_gui_navigation_loading_categories_read_only_and_safe_states(database, a
 def test_no_selection_and_stale_detail_result(database, app):
     window = MainWindow(database, GuiSession(1, "합성 연구자", None, None))
     try:
+        window.navigate("소하천 조회")
         assert not window.stream_list.detail_button.isEnabled()
         window.stream_list.open_detail()
         assert window.stack.currentWidget() is window.stream_list

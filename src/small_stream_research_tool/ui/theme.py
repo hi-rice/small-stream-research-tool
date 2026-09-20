@@ -31,6 +31,8 @@ QLabel#pageSubtitle, QLabel#secondaryText { color: #6B7280; font-size: 12px; }
 QLabel#sectionTitle { color: #1F2937; font-size: 15px; font-weight: 600; }
 QLabel#fieldLabel { color: #6B7280; font-size: 12px; }
 QLabel#fieldValue { color: #1F2937; font-size: 13px; font-weight: 500; }
+QLabel#homeMetricLabel { color: #6B7280; font-size: 12px; font-weight: 600; }
+QLabel#homeMetricValue { color: #1F2937; font-size: 21px; font-weight: 700; }
 QLabel#brandAgency { color: white; font-size: 14px; font-weight: 700; }
 QLabel#brandTitle { color: white; font-size: 16px; font-weight: 600; }
 QLabel#navSection { color: #91A4B8; font-size: 11px; font-weight: 600;
@@ -46,6 +48,8 @@ QScrollArea#detailScrollArea, QScrollArea#detailScrollArea > QWidget > QWidget,
 QWidget#detailContent { background: #F5F7FA; border: 0; }
 QScrollArea#listScrollArea, QScrollArea#listScrollArea > QWidget > QWidget,
 QWidget#listContent { background: #F5F7FA; border: 0; }
+QScrollArea#homeScrollArea, QScrollArea#homeScrollArea > QWidget > QWidget,
+QWidget#homeContent { background: #F5F7FA; border: 0; }
 QLabel#databaseState { color: #4B5563; background: transparent; }
 QLabel#databaseDot { color: #2F8A59; background: transparent; font-size: 16px; }
 QFrame#card, QGroupBox { background: white; border: 1px solid #D8DEE8; border-radius: 6px; }

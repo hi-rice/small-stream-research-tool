@@ -1,4 +1,4 @@
-"""Figma shell에 맞춘 앱 창. 구현된 소하천 조회만 실제 화면에 연결한다."""
+"""Figma shell에 맞춘 앱 창과 구현된 read-only 화면 navigation."""
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from small_stream_research_tool.ui.home import HomeView
 from small_stream_research_tool.ui.stream_detail import StreamDetailView
 from small_stream_research_tool.ui.stream_list import StreamListView
 
@@ -54,15 +55,18 @@ class MainWindow(QMainWindow):
         placeholder_layout.addWidget(QLabel("아직 구현되지 않은 기능입니다."))
         placeholder_layout.addStretch()
         self.stack.addWidget(self.placeholder)
+        self.home = HomeView(db_path)
+        self.stack.addWidget(self.home)
         self.stream_list = StreamListView(db_path)
         self.stack.addWidget(self.stream_list)
         self.stream_detail = StreamDetailView(db_path)
         self.stack.addWidget(self.stream_detail)
         self.stream_list.detail_requested.connect(self.show_stream_detail)
         self.stream_detail.back_requested.connect(lambda: self.navigate("소하천 조회"))
+        self.home.stream_list_requested.connect(lambda: self.navigate("소하천 조회"))
         workspace_layout.addWidget(self.stack, 1)
         shell.addWidget(workspace, 1)
-        self.navigate("소하천 조회")
+        self.navigate("홈")
 
     def _sidebar(self):
         sidebar = QWidget()
@@ -138,7 +142,10 @@ class MainWindow(QMainWindow):
             button.setObjectName("navSelected" if key == name else "navButton")
             button.style().unpolish(button)
             button.style().polish(button)
-        if name == "소하천 조회":
+        if name == "홈":
+            self.stack.setCurrentWidget(self.home)
+            self.home.refresh()
+        elif name == "소하천 조회":
             self.stack.setCurrentWidget(self.stream_list)
         else:
             self.placeholder_title.setText(name)
@@ -149,6 +156,8 @@ class MainWindow(QMainWindow):
         self.stream_detail.load_stream(stream_code)
 
     def closeEvent(self, event):
+        self.home._closed = True
+        self.home._generation += 1
         self.stream_list._closed = True
         self.stream_detail._closed = True
         super().closeEvent(event)

@@ -659,12 +659,13 @@ Phase 8 완료 기준을 충족하여 Phase 9 진입이 가능하다. Phase 9 �
 
 Phase 9A Read/Query Backend 완료: 목록 검색·지역 코드 필터·정렬·DB pagination과 제한된
 상세/현재값/QC/출처 표시 모델을 제공한다. Phase 9B 앱 shell·로그인·목록 GUI와 9C 상세 GUI를
-구현했고, 9D 홈·작업이력·마이페이지와 Phase 9 Final Gate는 후속 작업이다. Phase 9 전체는 미완료다.
+구현했고, 9D-2 Home GUI도 제공한다. 작업이력 전체 화면·마이페이지와 Phase 9 Final Gate는
+후속 작업이다. Phase 9 전체는 미완료다.
 
 Phase 9B 구현: PySide6 앱 시작·최초 사용자 등록/로그인·로그아웃·앱 shell과 09 소하천
 목록의 검색·지역 연동 필터·서버 정렬·DB 페이지 조회를 연결했다. 지역 선택지는 조회 Service가
 활성 소하천의 실제 코드/명칭을 읽는다. 9C 상세는 후속 단계에서 구현했으며,
-9D 홈·이력·마이페이지 및 최종 Gate는 남아 있다.
+9D-2 Home GUI를 제공하며 작업이력 전체 화면·마이페이지 및 최종 Gate는 남아 있다.
 
 Phase 9C-0 구현: schema migration과 분리한 versioned JSON 연구 사전과 원자적 bootstrap
 Service를 제공한다. 실제 70개 저장 leaf와 qualified alias, 확인된 단위만 등록하며 동일 정의는
@@ -679,7 +680,9 @@ Phase 9C-UI는 Figma 09 정보구조에 맞춰 앱 shell, 검색·목록, 선택
 Phase 9D-1 read backend는 GUI 없이 Home·작업이력·마이페이지용 bounded SELECT projection을
 제공한다. 활성 소하천·QC aggregate·연구 사전 상태, 실제 다섯 종류의 record_history event,
 공개 사용자 profile과 최근 작업을 안전하게 조회하며 raw JSON·내부 ID·password hash·절대경로를
-public model에 포함하지 않는다. Phase 9D GUI와 Phase 9 Final Gate는 남아 있다.
+public model에 포함하지 않는다. Phase 9D-2는 로그인 landing Home에서 활성 소하천·QC 집계·
+연구 사전 상태와 최근 5개 작업을 이 projection으로 표시한다. 작업이력 전체 화면·마이페이지 GUI와
+Phase 9 Final Gate는 남아 있다.
 
 ### 목표
 

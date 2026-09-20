@@ -95,6 +95,8 @@ def test_initial_setup_login_failure_success_and_logout(controller, app):
     login.password.returnPressed.emit()
     wait_for(app, lambda: controller.main_window is not None)
     assert controller.main_window.isVisible()
+    assert controller.main_window.stack.currentWidget() is controller.main_window.home
+    assert controller.main_window.nav_buttons["홈"].objectName() == "navSelected"
     assert controller.session.display_name == "Synthetic Researcher"
     assert controller.session.department == "Synthetic Team"
     assert controller.main_window.user_name.text() == "Synthetic Researcher"
@@ -171,8 +173,7 @@ def test_list_navigation_search_regions_sort_pages_and_selection(controller, app
     assert view.summary_code.text().endswith(view.selected_code)
     assert view.detail_button.isEnabled()
     window.navigate("홈")
-    assert window.stack.currentWidget() is window.placeholder
-    assert window.placeholder_title.text() == "홈"
+    assert window.stack.currentWidget() is window.home
     window.navigate("소하천 조회")
     assert window.stack.currentWidget() is view
     view.next.click()
@@ -276,7 +277,7 @@ def test_figma_shell_sections_active_navigation_and_search_contract(controller, 
     )
     assert "컬럼 매핑" not in window.nav_buttons
     assert "Import Preview" not in window.nav_buttons
-    assert window.nav_buttons["소하천 조회"].objectName() == "navSelected"
+    assert window.nav_buttons["홈"].objectName() == "navSelected"
     assert COLORS["sidebar"] == "#0F2740" and COLORS["primary"] == "#2F6FED"
     assert view.name_search.placeholderText() == "소하천명 검색"
     assert view.code_search.placeholderText() == "11자리 관리코드 검색"
@@ -298,6 +299,7 @@ def test_stream_list_adapts_wide_compact_and_back_without_losing_selection(contr
     view = window.stream_list
     window.resize(1440, 900)
     window.show()
+    window.navigate("소하천 조회")
     wait_for(app, lambda: view.model.rowCount() == 5)
     assert view._layout_mode == "wide"
     assert view.result_layout.getItemPosition(view.result_layout.indexOf(view.summary_panel))[
