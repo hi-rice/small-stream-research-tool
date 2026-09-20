@@ -46,6 +46,7 @@ class WorkHistoryView(QWidget):
         self._generation = 0
         self._actor_generation = 0
         self._actors_loaded = False
+        self._actor_filter_override = None
         self._closed = False
         self._tasks = set()
         self._filter_mode = None
@@ -122,7 +123,16 @@ class WorkHistoryView(QWidget):
         self._arrange_filters("wide")
         self._buttons()
 
-    def activate(self):
+    def activate(self, actor_user_id=None):
+        if actor_user_id is not None:
+            self.page = 1
+            self.change_type.setCurrentIndex(0)
+            self.stream_code.clear()
+            self._actor_filter_override = actor_user_id
+            if self._actors_loaded:
+                index = self.actor.findData(actor_user_id)
+                self.actor.setCurrentIndex(max(index, 0))
+                self._actor_filter_override = None
         if not self._actors_loaded:
             self._load_actors()
         self.refresh()
@@ -154,7 +164,10 @@ class WorkHistoryView(QWidget):
         for option in options:
             self.actor.addItem(option.display_name, option.user_id)
         index = self.actor.findData(selected)
+        if self._actor_filter_override is not None:
+            index = self.actor.findData(self._actor_filter_override)
         self.actor.setCurrentIndex(max(index, 0))
+        self._actor_filter_override = None
         self.actor.blockSignals(False)
         self._actors_loaded = True
 
@@ -180,7 +193,7 @@ class WorkHistoryView(QWidget):
             page=self.page,
             page_size=PAGE_SIZE,
             change_type=self.change_type.currentData(),
-            actor_user_id=self.actor.currentData(),
+            actor_user_id=self._actor_filter_override or self.actor.currentData(),
             stream_code=code,
         )
         self._start("list_work_history", ((request,), {}), token, self._history_result)

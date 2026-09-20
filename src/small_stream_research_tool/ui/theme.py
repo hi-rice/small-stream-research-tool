@@ -48,6 +48,8 @@ QScrollArea#detailScrollArea, QScrollArea#detailScrollArea > QWidget > QWidget,
 QWidget#detailContent { background: #F5F7FA; border: 0; }
 QScrollArea#listScrollArea, QScrollArea#listScrollArea > QWidget > QWidget,
 QWidget#listContent { background: #F5F7FA; border: 0; }
+QScrollArea#myPageScrollArea, QScrollArea#myPageScrollArea > QWidget > QWidget,
+QWidget#myPageContent { background: #F5F7FA; border: 0; }
 QScrollArea#homeScrollArea, QScrollArea#homeScrollArea > QWidget > QWidget,
 QWidget#homeContent { background: #F5F7FA; border: 0; }
 QLabel#databaseState { color: #4B5563; background: transparent; }
@@ -65,6 +67,10 @@ QPushButton:disabled { color: #9CA3AF; background: #EEF2F6; }
 QPushButton#primaryButton { color: white; background: #2F6FED;
   border-color: #2F6FED; font-weight: 600; }
 QPushButton#compactButton { padding: 4px 9px; min-height: 18px; }
+QPushButton#topbarUserButton { background: transparent; border: 1px solid transparent;
+  padding: 0; min-height: 36px; }
+QPushButton#topbarUserButton:hover, QPushButton#topbarUserButton:focus {
+  background: #F5F7FA; border-color: #D8DEE8; }
 QPushButton#navSelected, QPushButton#navButton { color: #D5DEE8; border: 0;
   border-radius: 4px; padding: 6px 12px 6px 18px;
   min-height: 20px; text-align: left; }

@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
 )
 
 from small_stream_research_tool.ui.home import HomeView
+from small_stream_research_tool.ui.my_page import MyPageView
 from small_stream_research_tool.ui.stream_detail import StreamDetailView
 from small_stream_research_tool.ui.stream_list import StreamListView
 from small_stream_research_tool.ui.work_history import WorkHistoryView
@@ -64,10 +65,13 @@ class MainWindow(QMainWindow):
         self.stack.addWidget(self.stream_detail)
         self.work_history = WorkHistoryView(db_path)
         self.stack.addWidget(self.work_history)
+        self.my_page = MyPageView(db_path, session.user_id)
+        self.stack.addWidget(self.my_page)
         self.stream_list.detail_requested.connect(self.show_stream_detail)
         self.stream_detail.back_requested.connect(lambda: self.navigate("소하천 조회"))
         self.home.stream_list_requested.connect(lambda: self.navigate("소하천 조회"))
         self.home.work_history_requested.connect(lambda: self.navigate("작업이력"))
+        self.my_page.work_history_requested.connect(self.show_user_work_history)
         workspace_layout.addWidget(self.stack, 1)
         shell.addWidget(workspace, 1)
         self.navigate("홈")
@@ -125,7 +129,11 @@ class MainWindow(QMainWindow):
         layout.addWidget(dot)
         layout.addWidget(database)
         layout.addStretch()
-        identity = QVBoxLayout()
+        self.user_button = QPushButton()
+        self.user_button.setObjectName("topbarUserButton")
+        self.user_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        identity = QVBoxLayout(self.user_button)
+        identity.setContentsMargins(9, 2, 9, 2)
         identity.setSpacing(0)
         self.user_name = QLabel(self.session.display_name)
         self.user_name.setAlignment(Qt.AlignmentFlag.AlignRight)
@@ -134,7 +142,8 @@ class MainWindow(QMainWindow):
         self.user_department.setAlignment(Qt.AlignmentFlag.AlignRight)
         identity.addWidget(self.user_name)
         identity.addWidget(self.user_department)
-        layout.addLayout(identity)
+        self.user_button.clicked.connect(lambda: self.navigate("마이페이지"))
+        layout.addWidget(self.user_button)
         self.logout_button = QPushButton("로그아웃")
         self.logout_button.setObjectName("compactButton")
         self.logout_button.clicked.connect(self.logout_requested)
@@ -154,6 +163,9 @@ class MainWindow(QMainWindow):
         elif name == "작업이력":
             self.stack.setCurrentWidget(self.work_history)
             self.work_history.activate()
+        elif name == "마이페이지":
+            self.stack.setCurrentWidget(self.my_page)
+            self.my_page.refresh()
         else:
             self.placeholder_title.setText(name)
             self.stack.setCurrentWidget(self.placeholder)
@@ -161,6 +173,17 @@ class MainWindow(QMainWindow):
     def show_stream_detail(self, stream_code):
         self.stack.setCurrentWidget(self.stream_detail)
         self.stream_detail.load_stream(stream_code)
+
+    def show_user_work_history(self, user_id):
+        self.stack.setCurrentWidget(self.work_history)
+        for button in self.nav_buttons.values():
+            button.setObjectName("navButton")
+            button.style().unpolish(button)
+            button.style().polish(button)
+        self.nav_buttons["작업이력"].setObjectName("navSelected")
+        self.nav_buttons["작업이력"].style().unpolish(self.nav_buttons["작업이력"])
+        self.nav_buttons["작업이력"].style().polish(self.nav_buttons["작업이력"])
+        self.work_history.activate(user_id)
 
     def closeEvent(self, event):
         self.home._closed = True
@@ -170,4 +193,6 @@ class MainWindow(QMainWindow):
         self.work_history._closed = True
         self.work_history._generation += 1
         self.work_history._actor_generation += 1
+        self.my_page._closed = True
+        self.my_page._generation += 1
         super().closeEvent(event)

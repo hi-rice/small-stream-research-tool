@@ -51,3 +51,28 @@ class AppQueryTask(QRunnable):
             self.signals.finished.emit(self.generation, result, None)
         except Exception:
             self.signals.finished.emit(self.generation, None, "조회 중 오류가 발생했습니다.")
+
+
+class MyPageQueryTask(QRunnable):
+    """한 worker connection에서 현재 사용자 공개 profile과 최근 작업을 조회한다."""
+
+    def __init__(self, db_path, generation, user_id):
+        super().__init__()
+        self.db_path = db_path
+        self.generation = generation
+        self.user_id = user_id
+        self.signals = QuerySignals()
+
+    def run(self):
+        try:
+            with closing(connect_database(self.db_path)) as connection:
+                service = AppReadService(connection)
+                result = (
+                    service.get_user_profile(self.user_id),
+                    service.recent_user_work(self.user_id),
+                )
+            self.signals.finished.emit(self.generation, result, None)
+        except Exception:
+            self.signals.finished.emit(
+                self.generation, None, "현재 사용자 정보를 확인할 수 없습니다."
+            )
