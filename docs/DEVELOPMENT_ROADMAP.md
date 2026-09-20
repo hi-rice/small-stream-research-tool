@@ -676,7 +676,10 @@ category별 승인 특성, 유효한 현재 사용값, 활성 QC와 별도 검�
 읽기 전용으로 표시한다. batch 조회와 worker별 SQLite 연결, stale 응답 차단을 유지한다.
 Phase 9C-UI는 Figma 09 정보구조에 맞춰 앱 shell, 검색·목록, 선택 요약 및 상세 presentation을
 정렬했다. 기존 조회 Service와 domain 상태 문구는 유지하며 미구현 분석·내보내기 동작은 연결하지 않는다.
-Phase 9D 홈·작업이력·마이페이지와 Phase 9 Final Gate는 남아 있다.
+Phase 9D-1 read backend는 GUI 없이 Home·작업이력·마이페이지용 bounded SELECT projection을
+제공한다. 활성 소하천·QC aggregate·연구 사전 상태, 실제 다섯 종류의 record_history event,
+공개 사용자 profile과 최근 작업을 안전하게 조회하며 raw JSON·내부 ID·password hash·절대경로를
+public model에 포함하지 않는다. Phase 9D GUI와 Phase 9 Final Gate는 남아 있다.
 
 ### 목표
 

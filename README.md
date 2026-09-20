@@ -31,7 +31,10 @@ Phase 9C는 목록에서 관리코드로 다시 조회하는 읽기 전용 상�
 category별 70개 승인 특성, 현재 사용값 상태, 활성 QC·검토상태, 안전한 출처와 값 이력을 표시한다.
 Phase 9C-UI는 Figma 09 화면에 맞춰 240px sidebar, 58px topbar, 조밀한 검색 영역,
 목록과 선택 요약 패널 및 상세 화면의 색상·간격·타이포그래피를 정렬했다.
-Phase 9D 홈·작업이력·마이페이지와 Phase 9 Final Gate는 아직 남아 있다.
+Phase 9D-1은 GUI 없이 Home·작업이력·마이페이지가 공유하는 읽기 전용 projection backend를
+제공한다. Home 집계, 실제 record_history event의 안전한 대상 해석, 공개 사용자 profile과
+bounded 최근 이력을 제공하며 raw JSON·내부 ID·password hash·절대경로는 반환하지 않는다.
+Phase 9D Home·작업이력·마이페이지 GUI와 Phase 9 Final Gate는 아직 남아 있다.
 
 ## 환경과 의존성
 
@@ -1157,6 +1160,8 @@ ERROR, 활성 WARNING/INFO의 NEEDS_REVIEW, 활성 issue가 없는 ACTIVE_ISSUES
 마지막 상태는 검사 완료를 증명하지 않는다. 조회는 SQLite read snapshot에서 SELECT만 수행하고
 불일치를 자동 수리하지 않는다. Phase 9B에서 PySide6 앱 shell·로그인·목록 GUI를 연결했다.
 9C 상세 GUI를 제공하며, 9D 홈·이력·마이페이지와 최종 Gate는 아직 남아 있다.
+9D-1 read backend는 활성 소하천 수, 활성 QC 오류/확인 필요 소하천 수, 연구 사전 상태,
+bounded 최근 작업이력과 안전한 공개 사용자 profile을 DB SELECT projection으로 제공한다.
 
 ## Phase 9B 목록 GUI
 
