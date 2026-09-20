@@ -31,6 +31,7 @@ HOME_CARD_REFLOW_BREAKPOINT = 900
 
 class HomeView(QWidget):
     stream_list_requested = Signal()
+    work_history_requested = Signal()
 
     def __init__(self, db_path):
         super().__init__()
@@ -102,6 +103,10 @@ class HomeView(QWidget):
         history_title.setObjectName("sectionTitle")
         history_header.addWidget(history_title)
         history_header.addStretch()
+        self.work_history_button = QPushButton("전체 작업이력")
+        self.work_history_button.setObjectName("compactButton")
+        self.work_history_button.clicked.connect(self.work_history_requested)
+        history_header.addWidget(self.work_history_button)
         layout.addLayout(history_header)
         self.status = QLabel("홈 정보를 불러오려면 홈을 선택하세요.")
         self.status.setObjectName("secondaryText")

@@ -6,6 +6,7 @@ from small_stream_research_tool.database.connection import read_transaction
 from small_stream_research_tool.models.app_read import (
     HomeSummary,
     UserPublicProfile,
+    WorkHistoryActorOption,
     WorkHistoryItem,
     WorkHistoryPage,
     WorkHistoryRequest,
@@ -92,6 +93,14 @@ class AppReadService:
             return WorkHistoryPage(total, request.page, request.page_size, pages, items)
         except AppReadError:
             raise
+        except Exception:
+            raise AppReadFailure() from None
+
+    def list_history_actor_options(self):
+        try:
+            with read_transaction(self._connection):
+                rows = self._repository.history_actor_options()
+            return tuple(WorkHistoryActorOption(row[0], row[1]) for row in rows)
         except Exception:
             raise AppReadFailure() from None
 

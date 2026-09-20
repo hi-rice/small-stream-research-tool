@@ -35,11 +35,16 @@ DICTIONARY_STATE_TEXT = {
     "INCONSISTENT": "연구 사전 확인 필요",
 }
 HISTORY_EVENT_TEXT = {
-    "CORRECTION": "연구자 보정",
+    "CORRECTION": "특성정보 보정",
     "CURRENT_VALUE_CHANGE": "현재 사용값 변경",
     "DEACTIVATE": "특성값 비활성화",
     "RESTORE": "특성값 복원",
     "CACHE_REBUILD": "현재값 캐시 재구축",
+}
+HISTORY_REASON_TEXT = {
+    "RESEARCHER_SELECTION": "연구자 선택",
+    "SOURCE_REVIEW": "출처 검토",
+    "QC_REVIEW_CONFIRMED": "QC 검토 확인",
 }
 
 

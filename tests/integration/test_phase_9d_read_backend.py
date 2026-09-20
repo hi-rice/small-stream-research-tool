@@ -238,6 +238,84 @@ def test_public_profile_and_recent_work(ctx):
         ctx.service.get_user_profile(ctx.actor)
 
 
+def test_history_actor_options_are_bounded_public_projection(ctx):
+    with transaction(ctx.conn):
+        same_name_one = UserRepository(ctx.conn).create_user(
+            login_id="same_name_one",
+            password_hash="synthetic-hash-only",
+            display_name="동일 표시명",
+            department=None,
+            role=None,
+            timestamp=STAMP,
+        )
+        same_name_two = UserRepository(ctx.conn).create_user(
+            login_id="same_name_two",
+            password_hash="synthetic-hash-only",
+            display_name="동일 표시명",
+            department=None,
+            role=None,
+            timestamp=STAMP,
+        )
+        future_only = UserRepository(ctx.conn).create_user(
+            login_id="future_only",
+            password_hash="synthetic-hash-only",
+            display_name="미지원 작업자",
+            department=None,
+            role=None,
+            timestamp=STAMP,
+        )
+        key = json.dumps({"stream_code": STREAM, "dictionary_id": 1})
+        for event, actor in (
+            ("CORRECTION", same_name_one.user_id),
+            ("RESTORE", same_name_two.user_id),
+            ("IMPORT", future_only.user_id),
+        ):
+            ctx.conn.execute(
+                "INSERT INTO record_history "
+                "(table_name,record_key,change_type,actor_user_id,changed_at) "
+                "VALUES (?,?,?,?,?)",
+                ("characteristic_value", key, event, actor, STAMP),
+            )
+    statements = []
+    ctx.conn.set_trace_callback(statements.append)
+    options = ctx.service.list_history_actor_options()
+    ctx.conn.set_trace_callback(None)
+    pairs = [(option.user_id, option.display_name) for option in options]
+    assert (same_name_one.user_id, "동일 표시명") in pairs
+    assert (same_name_two.user_id, "동일 표시명") in pairs
+    assert all(option.user_id != future_only.user_id for option in options)
+    assert len({option.user_id for option in options}) == len(options)
+    assert all("hash" not in repr(option) for option in options)
+    assert sum(statement.lstrip().upper().startswith("SELECT") for statement in statements) == 1
+
+
+def test_history_pagination_boundaries_use_backend_pages(ctx):
+    existing = ctx.service.list_work_history().total_count
+    key = json.dumps({"stream_code": STREAM, "dictionary_id": 1})
+
+    def add(count):
+        with transaction(ctx.conn):
+            for _index in range(count):
+                ctx.conn.execute(
+                    "INSERT INTO record_history "
+                    "(table_name,record_key,change_type,actor_user_id,changed_at) "
+                    "VALUES (?,?,?,?,?)",
+                    ("characteristic_value", key, "CORRECTION", ctx.actor, STAMP),
+                )
+
+    add(50 - existing)
+    page = ctx.service.list_work_history(WorkHistoryRequest(page_size=50))
+    assert (page.total_count, page.total_pages, len(page.items)) == (50, 1, 50)
+    add(1)
+    last = ctx.service.list_work_history(WorkHistoryRequest(page=2, page_size=50))
+    assert (last.total_count, last.total_pages, len(last.items)) == (51, 2, 1)
+    add(50)
+    middle = ctx.service.list_work_history(WorkHistoryRequest(page=2, page_size=50))
+    last = ctx.service.list_work_history(WorkHistoryRequest(page=3, page_size=50))
+    assert (middle.total_count, middle.total_pages, len(middle.items)) == (101, 3, 50)
+    assert len(last.items) == 1
+
+
 def test_read_projection_does_not_write_or_n_plus_one(ctx):
     statements = []
     before = snapshot(ctx.conn)

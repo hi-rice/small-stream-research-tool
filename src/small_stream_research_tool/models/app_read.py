@@ -13,6 +13,12 @@ class WorkHistoryRequest:
 
 
 @dataclass(frozen=True)
+class WorkHistoryActorOption:
+    user_id: int
+    display_name: str
+
+
+@dataclass(frozen=True)
 class WorkHistoryItem:
     change_type: str
     actor_display_name: str | None

@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
 from small_stream_research_tool.ui.home import HomeView
 from small_stream_research_tool.ui.stream_detail import StreamDetailView
 from small_stream_research_tool.ui.stream_list import StreamListView
+from small_stream_research_tool.ui.work_history import WorkHistoryView
 
 NAVIGATION_SECTIONS = (
     (None, ("홈",)),
@@ -61,9 +62,12 @@ class MainWindow(QMainWindow):
         self.stack.addWidget(self.stream_list)
         self.stream_detail = StreamDetailView(db_path)
         self.stack.addWidget(self.stream_detail)
+        self.work_history = WorkHistoryView(db_path)
+        self.stack.addWidget(self.work_history)
         self.stream_list.detail_requested.connect(self.show_stream_detail)
         self.stream_detail.back_requested.connect(lambda: self.navigate("소하천 조회"))
         self.home.stream_list_requested.connect(lambda: self.navigate("소하천 조회"))
+        self.home.work_history_requested.connect(lambda: self.navigate("작업이력"))
         workspace_layout.addWidget(self.stack, 1)
         shell.addWidget(workspace, 1)
         self.navigate("홈")
@@ -147,6 +151,9 @@ class MainWindow(QMainWindow):
             self.home.refresh()
         elif name == "소하천 조회":
             self.stack.setCurrentWidget(self.stream_list)
+        elif name == "작업이력":
+            self.stack.setCurrentWidget(self.work_history)
+            self.work_history.activate()
         else:
             self.placeholder_title.setText(name)
             self.stack.setCurrentWidget(self.placeholder)
@@ -160,4 +167,7 @@ class MainWindow(QMainWindow):
         self.home._generation += 1
         self.stream_list._closed = True
         self.stream_detail._closed = True
+        self.work_history._closed = True
+        self.work_history._generation += 1
+        self.work_history._actor_generation += 1
         super().closeEvent(event)

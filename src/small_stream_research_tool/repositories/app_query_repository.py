@@ -100,6 +100,15 @@ class AppQueryRepository:
             (*params, request.page_size, (request.page - 1) * request.page_size),
         )
 
+    def history_actor_options(self):
+        return self._rows(
+            "SELECT DISTINCT u.user_id,u.display_name FROM record_history h "
+            "JOIN app_user u ON u.user_id=h.actor_user_id "
+            "WHERE h.change_type IN "
+            "('CORRECTION','CURRENT_VALUE_CHANGE','DEACTIVATE','RESTORE','CACHE_REBUILD') "
+            "ORDER BY u.display_name,u.user_id"
+        )
+
     def value_targets(self, value_ids):
         if not value_ids:
             return ()
