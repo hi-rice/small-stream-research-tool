@@ -4,7 +4,7 @@ import sqlite3
 
 from small_stream_research_tool.models.app_read_errors import AppReadFailure
 
-PAIR_EVENTS = frozenset(("CORRECTION", "CURRENT_VALUE_CHANGE", "CACHE_REBUILD"))
+PAIR_EVENTS = frozenset(("CORRECTION", "CURRENT_VALUE_CHANGE", "CACHE_REBUILD", "QC_REVIEW"))
 VALUE_EVENTS = frozenset(("DEACTIVATE", "RESTORE"))
 
 
@@ -65,7 +65,7 @@ class AppQueryRepository:
     def _history_where(request):
         clauses = [
             "h.change_type IN ('CORRECTION','CURRENT_VALUE_CHANGE','DEACTIVATE','RESTORE',"
-            "'CACHE_REBUILD')"
+            "'CACHE_REBUILD','QC_REVIEW')"
         ]
         params = []
         if request.change_type is not None:
@@ -77,7 +77,8 @@ class AppQueryRepository:
         if request.stream_code is not None:
             safe_key = "CASE WHEN json_valid(h.record_key) THEN h.record_key ELSE '{}' END"
             clauses.append(
-                "((h.change_type IN ('CORRECTION','CURRENT_VALUE_CHANGE','CACHE_REBUILD') "
+                "((h.change_type IN ('CORRECTION','CURRENT_VALUE_CHANGE','CACHE_REBUILD',"
+                "'QC_REVIEW') "
                 f"AND json_extract({safe_key},'$.stream_code')=?) OR "
                 "(h.change_type IN ('DEACTIVATE','RESTORE') AND EXISTS ("
                 "SELECT 1 FROM characteristic_value cv WHERE cv.characteristic_value_id="
@@ -105,7 +106,8 @@ class AppQueryRepository:
             "SELECT DISTINCT u.user_id,u.display_name FROM record_history h "
             "JOIN app_user u ON u.user_id=h.actor_user_id "
             "WHERE h.change_type IN "
-            "('CORRECTION','CURRENT_VALUE_CHANGE','DEACTIVATE','RESTORE','CACHE_REBUILD') "
+            "('CORRECTION','CURRENT_VALUE_CHANGE','DEACTIVATE','RESTORE','CACHE_REBUILD',"
+            "'QC_REVIEW') "
             "ORDER BY u.display_name,u.user_id"
         )
 

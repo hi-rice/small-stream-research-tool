@@ -33,6 +33,7 @@ EVENT_FILTERS = (
     ("특성값 비활성화", "DEACTIVATE"),
     ("특성값 복원", "RESTORE"),
     ("현재값 캐시 재구축", "CACHE_REBUILD"),
+    ("QC 검토", "QC_REVIEW"),
 )
 
 

@@ -190,7 +190,7 @@ class AppReadService:
             target = None
             if key is not None and event in PAIR_EVENTS:
                 code, item = key.get("stream_code"), key.get("dictionary_id")
-                if _stream_code(code) and _id(item):
+                if _stream_code(code) and (_id(item) or (event == "QC_REVIEW" and item is None)):
                     target = (code, item)
             elif key is not None and event in VALUE_EVENTS:
                 value_id = key.get("characteristic_value_id")
@@ -209,7 +209,8 @@ class AppReadService:
                 target = values.get(target)
             if type(target) is tuple:
                 stream_codes.add(target[0])
-                dictionary_ids.add(target[1])
+                if target[1] is not None:
+                    dictionary_ids.add(target[1])
             targets.append((event, target, reason, changed_at, actor_name))
         stream_names = dict(self._repository.stream_names(tuple(stream_codes)))
         dictionary_names = dict(self._repository.dictionary_names(tuple(dictionary_ids)))
@@ -219,7 +220,7 @@ class AppReadService:
             resolved = (
                 type(target) is tuple
                 and target[0] in stream_names
-                and target[1] in dictionary_names
+                and (target[1] in dictionary_names or (event == "QC_REVIEW" and target[1] is None))
             )
             safe_reason = reason if reason in SAFE_REASON_CODES else None
             reason_state = "NONE" if reason is None else "KNOWN" if safe_reason else "UNRECOGNIZED"
@@ -230,7 +231,13 @@ class AppReadService:
                     "KNOWN" if actor_name is not None else "UNKNOWN",
                     target[0] if resolved else None,
                     stream_names.get(target[0]) if resolved else None,
-                    dictionary_names.get(target[1]) if resolved else None,
+                    (
+                        dictionary_names.get(target[1])
+                        if target[1] is not None
+                        else "특성항목 미지정"
+                    )
+                    if resolved
+                    else None,
                     "RESOLVED" if resolved else "UNRESOLVED",
                     safe_reason,
                     reason_state,

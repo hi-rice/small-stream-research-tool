@@ -40,6 +40,7 @@ HISTORY_EVENT_TEXT = {
     "DEACTIVATE": "특성값 비활성화",
     "RESTORE": "특성값 복원",
     "CACHE_REBUILD": "현재값 캐시 재구축",
+    "QC_REVIEW": "QC 검토",
 }
 HISTORY_REASON_TEXT = {
     "RESEARCHER_SELECTION": "연구자 선택",

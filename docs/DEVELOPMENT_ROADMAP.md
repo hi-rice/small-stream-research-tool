@@ -741,6 +741,18 @@ Phase 9 Final Gate를 통과하여 Phase 10 진입이 가능하다.
 
 ## Phase 10. Import·사전·QC·보정·DB관리·환경 GUI
 
+Phase 10A backend 계약: 승인 연구항목과 안전한 기본정보만 Preview/Import에 허용하고,
+미확정 단위는 사용자 확인 대상으로 둔다. 동일 file hash의 성공 Import는 안전한 요약과
+명시적 재Import 확인이 필요하다. Import 이력과 활성 QC issue는 bounded read Service로
+조회한다. QC 검토는 활성 작업자·issue에 대해 UNREVIEWED → IN_REVIEW → CONFIRMED만
+허용하고, 선택 note/result는 Service에서 500/200자로 제한한다. 같은 상태 요청은 no-op,
+실제 변경은 transaction과 `QC_REVIEW` 감사이력으로 남긴다. Home·작업이력·마이페이지의
+공개 이벤트 목록에도 QC_REVIEW를 추가하되 raw note/ID/JSON은 내보내지 않는다.
+Phase 10A에는 GUI·schema·migration·dependency 변경이 없다. GUI의 mutation worker는
+자기 SQLite 연결을 소유하고 Service 1회 실행 후 닫으며, 저장 시작 후 강제 취소하지 않는다.
+V1 Import는 한 번에 한 sheet만 실행하고, 성공 workspace를 자동 삭제하지 않는다.
+DB 상태/무결성 조회와 Settings local config는 Phase 10G에서 구체화한다.
+
 02~08 화면과 10 DB 관리, 16 설정을 연결한다. DB 관리에서 특성값 직접 수정은 금지하며 08 보정으로 연결한다. UI 설정은 QSettings/local config, Draft는 연구 DB 밖의 로컬 workspace 파일을 사용한다. Phase 5에서 마련한 저장·재개 Service를 GUI에 연결한다. Backup/Restore의 실제 기능은 Phase 14에서 연결·검증하며 이 단계에서 완료로 간주하지 않는다.
 
 ### 목표

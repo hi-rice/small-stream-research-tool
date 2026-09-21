@@ -1226,3 +1226,26 @@ batch 해석한다. 사전 미초기화, 현재값 미지정, 캐시 불일치, 
 첫 실행에서는 기존 최초 사용자 등록 화면에서 smoke DB 전용 계정을 만든다. 등록 직후 기존
 Phase 8 Service로 합성 current-use와 보정 이력을 완성하며, 이후 같은 `run` 명령으로 로그인한다.
 생성된 `build/ui_smoke.db`는 Git에서 제외되는 일회성 산출물이다.
+
+## Phase 10A backend 계약
+
+Phase 10A는 GUI 없이 Import/QC 화면에 필요한 읽기·검토 경계를 준비한다.
+`Phase10ReadService`는 Import 이력과 동일 SHA-256 이력을 DB COUNT/LIMIT/OFFSET으로
+조회하며 파일명만 반환한다. 기존 성공 Import의 동일 hash는 재Import 경고와 명시적
+확인 대상이며 영구 금지는 아니다. 같은 batch code 중복 차단은 유지한다.
+`Phase10ImportPolicyService`는 현재 연구 사전에서 승인된 항목과 안전한 소하천 기본정보만
+Preview/Import 정책에 포함한다. 불명확한 단위는 `NEEDS_REVIEW`이며 자동 추정·변환하지
+않는다. GUI는 내부 Preview 객체 대신 `to_display()` 결과만 사용해야 한다.
+
+`Phase10ReadService`의 QC 목록·상세는 활성 issue의 안전한 필드만 반환하며 raw QC
+message, note, 내부 ID, 경로를 화면에 표시하지 않는다. `QCReviewService`는 활성 작업자가
+활성 issue에 대해 `UNREVIEWED → IN_REVIEW → CONFIRMED` 전이만 요청할 수 있게 한다.
+동일 상태는 no-op이고 note/result는 선택 사항이며 각각 500/200자로 제한한다. 검토와
+`QC_REVIEW` 감사이력은 한 transaction으로 기록한다. Home·작업이력·마이페이지의 공개
+이력은 여섯 번째 event `QC_REVIEW`를 안전한 소하천·특성항목 대상으로 표시한다.
+
+Phase 10 GUI는 아직 구현되지 않았다. 한 실행의 Import 대상은 한 sheet이며 DB 저장 전까지만
+취소한다. 저장 시작 후 worker/thread/connection을 강제 종료하지 않고 Service의 결과를
+기다린다. 단계 기반 진행 상태를 사용하고 임의 퍼센트는 표시하지 않는다. Import 성공 후
+workspace는 자동 삭제하지 않는다. DB 관리 cache rebuild는 기존 명시적 Service를 재사용하며
+Backup/Restore는 Phase 14 범위다.
