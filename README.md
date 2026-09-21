@@ -38,7 +38,9 @@ Phase 9D-2는 로그인 후 Home에 활성 소하천·QC 집계·연구 사전 �
 읽기 전용으로 표시한다. Phase 9D-3은 주요 연구 데이터 변경이력을 50건 단위로 조회하고
 작업 유형·작업자·관리코드로 필터링한다.
 Phase 9D-4는 Topbar에서 현재 작업자의 공개 계정정보와 최근 작업을 조회하는 읽기 전용
-마이페이지를 제공한다. Phase 9 Final Gate는 아직 남아 있다.
+마이페이지를 제공한다. Phase 9 Final Gate는 합성 임시 DB에서 로그인부터 Home·목록·상세·
+작업이력·마이페이지·로그아웃까지의 읽기 전용 통합 흐름과 DB 불변성을 검증했다.
+실제 Windows 최종 육안 검수와 scrollbar 등 visual polish는 별도 후속 확인 항목이다.
 
 ## 환경과 의존성
 
@@ -1163,14 +1165,15 @@ page_size(1~100), 관리코드 정확/접두 또는 하천명 부분 검색, 시
 ERROR, 활성 WARNING/INFO의 NEEDS_REVIEW, 활성 issue가 없는 ACTIVE_ISSUES_NONE으로 구분하며
 마지막 상태는 검사 완료를 증명하지 않는다. 조회는 SQLite read snapshot에서 SELECT만 수행하고
 불일치를 자동 수리하지 않는다. Phase 9B에서 PySide6 앱 shell·로그인·목록 GUI를 연결했다.
-9C 상세 GUI, 9D-2 Home GUI, 9D-3 작업이력 GUI와 9D-4 마이페이지를 제공하며 최종 Gate는 남아 있다.
+9C 상세 GUI, 9D-2 Home GUI, 9D-3 작업이력 GUI와 9D-4 마이페이지를 제공하며 Phase 9 Final Gate를 통과했다.
 9D-1 read backend는 활성 소하천 수, 활성 QC 오류/확인 필요 소하천 수, 연구 사전 상태,
 bounded 최근 작업이력과 안전한 공개 사용자 profile을 DB SELECT projection으로 제공한다.
 Phase 9D-2 Home GUI는 이 projection만 비동기로 조회한다. Phase 9D-3 작업이력 GUI는
 지원되는 다섯 작업 유형의
 안전한 공개 projection만 표시하며 원시 이력 값과 내부 ID는 표시하지 않는다.
 Phase 9D-4 마이페이지는 공개 profile과 현재 사용자 최근 작업만 비동기로 조회하며 계정 수정이나
-사용자 관리 기능을 제공하지 않는다. Phase 9 Final Gate는 아직 남아 있다.
+사용자 관리 기능을 제공하지 않는다. `tests/integration/test_phase_9_final_gate.py`는 Phase 9의
+주요 화면 흐름, pagination·필터·resize, 안전 경계와 조회 전후 DB 불변성을 합성 데이터로 검증한다.
 
 ## Phase 9B 목록 GUI
 

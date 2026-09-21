@@ -660,12 +660,13 @@ Phase 8 완료 기준을 충족하여 Phase 9 진입이 가능하다. Phase 9 �
 Phase 9A Read/Query Backend 완료: 목록 검색·지역 코드 필터·정렬·DB pagination과 제한된
 상세/현재값/QC/출처 표시 모델을 제공한다. Phase 9B 앱 shell·로그인·목록 GUI와 9C 상세 GUI를
 구현했고, 9D-2 Home GUI·9D-3 작업이력 GUI·9D-4 마이페이지도 제공한다. Phase 9 Final Gate는
-후속 작업이다. Phase 9 전체는 미완료다.
+합성 임시 DB의 전체 읽기 전용 화면 흐름과 DB 불변성 검증을 통과했다. Phase 9 완료 기준을 충족했다.
+실제 Windows 최종 육안 검수와 scrollbar 등 visual polish는 별도 후속 확인 항목이다.
 
 Phase 9B 구현: PySide6 앱 시작·최초 사용자 등록/로그인·로그아웃·앱 shell과 09 소하천
 목록의 검색·지역 연동 필터·서버 정렬·DB 페이지 조회를 연결했다. 지역 선택지는 조회 Service가
 활성 소하천의 실제 코드/명칭을 읽는다. 9C 상세는 후속 단계에서 구현했으며,
-9D-2 Home GUI, 9D-3 작업이력 GUI와 9D-4 마이페이지를 제공하며 최종 Gate는 남아 있다.
+9D-2 Home GUI, 9D-3 작업이력 GUI와 9D-4 마이페이지를 제공하며 최종 Gate를 통과했다.
 
 Phase 9C-0 구현: schema migration과 분리한 versioned JSON 연구 사전과 원자적 bootstrap
 Service를 제공한다. 실제 70개 저장 leaf와 qualified alias, 확인된 단위만 등록하며 동일 정의는
@@ -685,7 +686,8 @@ public model에 포함하지 않는다. Phase 9D-2는 로그인 landing Home에�
 변경이력을 50건 단위로 조회하고
 작업 유형·안전한 작업자 option·11자리 관리코드 필터를 제공한다.
 Phase 9D-4는 Topbar 사용자 영역에서 현재 작업자의 공개 profile과 최근 최대 5개 작업을 조회하며
-계정 수정 기능은 제공하지 않는다. Phase 9 Final Gate는 남아 있다.
+계정 수정 기능은 제공하지 않는다. Phase 9 Final Gate에서 로그인·Home·목록·상세·작업이력·
+마이페이지·로그아웃과 pagination·필터·resize, 조회 전후 DB 불변성을 통합 검증했다.
 
 ### 목표
 
@@ -734,6 +736,8 @@ ui의 조회·목록·상세 화면, app 조립, 기존 Service 호출, GUI 검�
 ### 다음 단계 진입 조건
 
 연구자가 코드 없이 조회하고 출처를 확인할 수 있으며 이전 테스트가 통과하면 Phase 10으로 진행한다. 공통 Phase Gate도 만족해야 한다.
+
+Phase 9 Final Gate를 통과하여 Phase 10 진입이 가능하다.
 
 ## Phase 10. Import·사전·QC·보정·DB관리·환경 GUI
 
