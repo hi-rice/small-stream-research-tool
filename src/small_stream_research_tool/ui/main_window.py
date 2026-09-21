@@ -7,6 +7,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QMainWindow,
     QPushButton,
+    QSizePolicy,
     QStackedWidget,
     QVBoxLayout,
     QWidget,
@@ -142,10 +143,19 @@ class MainWindow(QMainWindow):
         self.user_department.setAlignment(Qt.AlignmentFlag.AlignRight)
         identity.addWidget(self.user_name)
         identity.addWidget(self.user_department)
+        identity_margins = identity.contentsMargins()
+        identity_width = (
+            max(self.user_name.sizeHint().width(), self.user_department.sizeHint().width())
+            + identity_margins.left()
+            + identity_margins.right()
+        )
+        self.user_button.setMinimumWidth(identity_width)
+        self.user_button.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Fixed)
         self.user_button.clicked.connect(lambda: self.navigate("마이페이지"))
         layout.addWidget(self.user_button)
         self.logout_button = QPushButton("로그아웃")
         self.logout_button.setObjectName("compactButton")
+        self.logout_button.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         self.logout_button.clicked.connect(self.logout_requested)
         layout.addWidget(self.logout_button)
         return topbar

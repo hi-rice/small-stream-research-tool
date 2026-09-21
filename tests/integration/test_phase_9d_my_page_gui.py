@@ -160,6 +160,55 @@ def visible_text(widget):
     return " ".join(labels + cells)
 
 
+def test_topbar_identity_keeps_readable_geometry_at_supported_sizes(tmp_path, app):
+    control = ApplicationController(tmp_path / "topbar-identity.sqlite3")
+    control.auth_service.create_user(
+        "topbar_actor",
+        "synthetic-password",
+        "권혜연",
+        "기후영향분석팀",
+        "연구자",
+    )
+    control.start()
+    login_window = control.login_window
+    login_window.login_id.setText("topbar_actor")
+    login_window.password.setText("synthetic-password")
+    login_window.submit.click()
+    wait_for(app, lambda: control.main_window is not None)
+    window = control.main_window
+    try:
+        window.show()
+        for width, height in ((1440, 900), (1200, 800), (900, 600)):
+            window.resize(width, height)
+            app.processEvents()
+            assert window.user_name.text() == "권혜연"
+            assert window.user_department.text() == "기후영향분석팀"
+            assert (
+                window.user_name.contentsRect().width()
+                >= window.user_name.fontMetrics().horizontalAdvance(window.user_name.text())
+            )
+            assert (
+                window.user_department.contentsRect().width()
+                >= window.user_department.fontMetrics().horizontalAdvance(
+                    window.user_department.text()
+                )
+            )
+            assert window.logout_button.isVisible()
+            assert (
+                window.logout_button.geometry().right()
+                <= window.logout_button.parentWidget().contentsRect().right()
+            )
+
+        window.user_button.click()
+        assert window.stack.currentWidget() is window.my_page
+        window.logout_button.click()
+        app.processEvents()
+        assert control.session is None and control.login_window.isVisible()
+    finally:
+        control.close()
+        app.processEvents()
+
+
 def test_topbar_profile_recent_work_and_navigation_are_safe(controller, app):
     window = login(controller, app)
     with closing(connect_database(controller.db_path)) as conn:
