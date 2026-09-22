@@ -1,0 +1,52 @@
+{
+  "manifest_version": "import-core-dictionary-v1",
+  "category": {
+    "key": "import_core",
+    "name": "가져오기 기본정보",
+    "sort_order": 0
+  },
+  "items": [
+    {
+      "standard_name": "소하천 관리코드",
+      "internal_name": "stream_code",
+      "data_type": "TEXT",
+      "role": "IDENTITY",
+      "aliases": [{"name": "관리코드", "source_scope": "NATIONAL_2024"}]
+    },
+    {
+      "standard_name": "시·도 코드",
+      "internal_name": "province_code",
+      "data_type": "TEXT",
+      "role": "IDENTITY",
+      "aliases": [{"name": "시도코드", "source_scope": "NATIONAL_2024"}]
+    },
+    {
+      "standard_name": "시·군·구 코드",
+      "internal_name": "city_county_code",
+      "data_type": "TEXT",
+      "role": "IDENTITY",
+      "aliases": [{"name": "시군구코드", "source_scope": "NATIONAL_2024"}]
+    },
+    {
+      "standard_name": "읍·면·동 코드",
+      "internal_name": "town_code",
+      "data_type": "TEXT",
+      "role": "IDENTITY",
+      "aliases": [{"name": "읍면동코드", "source_scope": "NATIONAL_2024"}]
+    },
+    {
+      "standard_name": "소하천 일련번호",
+      "internal_name": "stream_serial_no",
+      "data_type": "TEXT",
+      "role": "IDENTITY",
+      "aliases": [{"name": "일련번호", "source_scope": "NATIONAL_2024"}]
+    },
+    {
+      "standard_name": "소하천명",
+      "internal_name": "stream_name",
+      "data_type": "TEXT",
+      "role": "STREAM_MASTER",
+      "aliases": [{"name": "소하천명", "source_scope": "NATIONAL_2024"}]
+    }
+  ]
+}

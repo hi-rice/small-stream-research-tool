@@ -1,6 +1,6 @@
 """Phase 10B 파일·sheet·header 확인과 단일 Workspace 저장 화면."""
 
-from PySide6.QtCore import Qt, QThreadPool
+from PySide6.QtCore import Qt, QThreadPool, Signal
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QFileDialog,
@@ -22,6 +22,8 @@ from small_stream_research_tool.ui.workers import ImportInspectionTask
 
 
 class ImportWorkspaceView(QWidget):
+    mapping_requested = Signal(object)
+
     def __init__(self, db_path, user_id, workspace_dir=None):
         super().__init__()
         self.db_path = db_path
@@ -162,7 +164,7 @@ class ImportWorkspaceView(QWidget):
         self.next_button = QPushButton("다음: 컬럼 매핑")
         self.next_button.setObjectName("primaryButton")
         self.next_button.setEnabled(False)
-        self.next_button.setToolTip("컬럼 매핑 화면은 다음 단계에서 연결됩니다.")
+        self.next_button.clicked.connect(self._next)
         actions.addWidget(self.next_button)
         layout.addLayout(actions)
         layout.addStretch()
@@ -372,6 +374,13 @@ class ImportWorkspaceView(QWidget):
             field.setEnabled(bool(selected))
         self.structure_button.setEnabled(bool(selected))
         self.save_button.setEnabled(bool(available and self.state and self.state.columns))
+        self.next_button.setEnabled(
+            bool(available and self.state and self.state.columns and self.state.workspace_saved_at)
+        )
+
+    def _next(self):
+        if self.next_button.isEnabled() and self.state is not None:
+            self.mapping_requested.emit(self.state)
 
     def activate(self):
         if self.state is None:

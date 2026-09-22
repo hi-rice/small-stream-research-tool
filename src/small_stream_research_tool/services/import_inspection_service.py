@@ -180,7 +180,12 @@ class ImportInspectionService:
                 raise ImportInspectionError("원본 파일이 변경되어 재개할 수 없습니다.")
             if draft.current_step == WorkspaceStep.FILE_SELECTED:
                 return replace(state, workspace_saved_at=draft.saved_at)
-            if draft.current_step != WorkspaceStep.HEADER_CONFIGURED:
+            if draft.current_step not in (
+                WorkspaceStep.HEADER_CONFIGURED,
+                WorkspaceStep.MAPPING,
+                WorkspaceStep.CODE_VALIDATION,
+                WorkspaceStep.PREVIEW,
+            ):
                 raise ImportInspectionError("이 작업 단계는 현재 화면에서 재개할 수 없습니다.")
             if draft.selected_sheet_name is None or draft.header_start_row is None:
                 raise ImportInspectionError("저장된 작업 상태를 확인할 수 없습니다.")

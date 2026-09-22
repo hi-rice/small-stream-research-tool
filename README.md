@@ -1259,3 +1259,26 @@ Sidebar의 **Excel 가져오기**는 `.xlsx` 선택 후 별도 worker에서 SHA-
 수 있고 chartsheet와 빈 sheet는 제외한다. 확인한 범위는 연구 DB 밖의 사용자별 Workspace
 draft로 명시적으로 저장·재개하며, 재개 시 원본 hash를 다시 검증한다. 컬럼 매핑·Preview
 화면은 Phase 10C, 실제 DB Import 실행은 Phase 10D 범위다.
+
+## Phase 10C 컬럼 매핑·Import Preview
+
+저장된 10B 파일 구조에서 **다음: 컬럼 매핑**으로 이동한다. 원본 파일·hash·선택 sheet·
+헤더와 연구 사전 상태를 worker에서 다시 확인한다. 기본은 공통 별칭만 사용하고, 사용자가
+2024 전국 연구자료 범위를 명시적으로 선택한 경우에만 `NATIONAL_2024` 별칭의 정확한
+일치 결과를 자동 제안한다. 허용된 활성 사전 항목을 수동 선택하거나 원본 열을 명시적으로
+제외할 수 있다. 매핑 변경은 사용자별 Workspace에 저장하고 이전 Preview를 무효화한다.
+민감 열은 값·헤더 metadata를 Preview/Workspace에 옮기지 않고 제외한다.
+
+관리코드 검증과 Preview는 기존 Service를 사용하며 모든 원본 행을 worker에서 판정한다.
+화면에는 관리코드·상태·안전한 사유만 최대 50행 표시한다. 원본 단위는 추정하지 않고
+확인 필요로 안내한다. 연구 사전 미초기화·불일치와 원본 변경은 진행을 차단한다.
+연구 사전 bootstrap은 별도 `import-core-dictionary-v1` 정의의 관리코드·네 구성요소·소하천명
+6개도 같은 transaction에서 준비한다. 이 항목은 TEXT·CORE·비분석용이며 연구 leaf 70개,
+research fingerprint와 상세 표시 allowlist에는 포함하지 않는다. core와 연구항목은 기존
+ColumnMappingService에서 함께 매핑되지만 Preparation은 core를 `small_stream` 식별·기본정보로
+분리하고 `characteristic_value` 후보로 만들지 않는다. **다음: Import 실행**은 Phase 10D까지
+비활성이다. 10C Mapping/Preview는 bootstrap 이후 연구 DB를 변경하지 않고 Workspace만 저장한다.
+기존 연구 사전 DB도 동일한 명시적 `ResearchDictionaryBootstrapService.bootstrap()`을 다시
+실행하면 정의가 같은 연구항목은 재사용되고 누락된 core prerequisite만 원자적으로 추가된다.
+이전에 저장한 미매핑 Workspace는 조용히 바꾸지 않으며 사용자가 **자동 매핑 다시 적용**을
+실행해야 한다. 기존 stream의 다른 원본 하천명은 식별키로 쓰거나 DB master를 변경하지 않는다.

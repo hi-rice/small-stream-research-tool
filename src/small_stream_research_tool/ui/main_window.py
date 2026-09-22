@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
 )
 
 from small_stream_research_tool.ui.home import HomeView
+from small_stream_research_tool.ui.import_mapping import ImportMappingView
 from small_stream_research_tool.ui.import_workspace import ImportWorkspaceView
 from small_stream_research_tool.ui.my_page import MyPageView
 from small_stream_research_tool.ui.stream_detail import StreamDetailView
@@ -63,6 +64,11 @@ class MainWindow(QMainWindow):
         self.stack.addWidget(self.home)
         self.import_workspace = ImportWorkspaceView(db_path, session.user_id, workspace_dir)
         self.stack.addWidget(self.import_workspace)
+        self.import_mapping = ImportMappingView(db_path, session.user_id, workspace_dir)
+        self.stack.addWidget(self.import_mapping)
+        self.import_workspace.mapping_requested.connect(self.show_import_mapping)
+        self.import_mapping.back_requested.connect(self.show_import_structure)
+        self._import_step = "structure"
         self.stream_list = StreamListView(db_path)
         self.stack.addWidget(self.stream_list)
         self.stream_detail = StreamDetailView(db_path)
@@ -166,6 +172,8 @@ class MainWindow(QMainWindow):
     def navigate(self, name):
         if self.stack.currentWidget() is self.import_workspace and name != "Excel 가져오기":
             self.import_workspace.deactivate()
+        if self.stack.currentWidget() is self.import_mapping and name != "Excel 가져오기":
+            self.import_mapping.deactivate()
         for key, button in self.nav_buttons.items():
             button.setObjectName("navSelected" if key == name else "navButton")
             button.style().unpolish(button)
@@ -174,8 +182,12 @@ class MainWindow(QMainWindow):
             self.stack.setCurrentWidget(self.home)
             self.home.refresh()
         elif name == "Excel 가져오기":
-            self.stack.setCurrentWidget(self.import_workspace)
-            self.import_workspace.activate()
+            if self._import_step == "mapping":
+                self.stack.setCurrentWidget(self.import_mapping)
+                self.import_mapping.resume_workflow()
+            else:
+                self.stack.setCurrentWidget(self.import_workspace)
+                self.import_workspace.activate()
         elif name == "소하천 조회":
             self.stack.setCurrentWidget(self.stream_list)
         elif name == "작업이력":
@@ -187,6 +199,20 @@ class MainWindow(QMainWindow):
         else:
             self.placeholder_title.setText(name)
             self.stack.setCurrentWidget(self.placeholder)
+
+    def show_import_mapping(self, source):
+        self._import_step = "mapping"
+        self.stack.setCurrentWidget(self.import_mapping)
+        self.import_mapping.open_workflow(source)
+
+    def show_import_structure(self):
+        self.import_mapping.deactivate()
+        if self.import_mapping.state is not None:
+            self.import_workspace.state = self.import_mapping.state.source
+            self.import_workspace._set_controls(True)
+        self._import_step = "structure"
+        self.stack.setCurrentWidget(self.import_workspace)
+        self.import_workspace.activate()
 
     def show_stream_detail(self, stream_code):
         self.stack.setCurrentWidget(self.stream_detail)
@@ -215,4 +241,6 @@ class MainWindow(QMainWindow):
         self.my_page._generation += 1
         self.import_workspace._closed = True
         self.import_workspace._generation += 1
+        self.import_mapping._closed = True
+        self.import_mapping._generation += 1
         super().closeEvent(event)

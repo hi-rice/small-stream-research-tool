@@ -67,19 +67,20 @@ def test_fresh_bootstrap_manifest_shape_and_idempotency(context):
     )
     assert state == counts(connection)
     assert counts(connection) == {
-        "data_category": 5,
-        "dictionary_version": 1,
+        "data_category": 6,
+        "dictionary_version": 2,
         "unit_dictionary": 6,
         "unit_conversion": 0,
-        "data_dictionary": 70,
-        "column_alias": 70,
+        "data_dictionary": 76,
+        "column_alias": 76,
         "quality_rule": 0,
         "characteristic_value": 0,
         "stream_characteristic": 0,
         "record_history": 0,
     }
     version = connection.execute(
-        "SELECT version,description,is_current FROM dictionary_version"
+        "SELECT version,description,is_current FROM dictionary_version "
+        "WHERE version='research-dictionary-v1'"
     ).fetchone()
     assert version == (
         "research-dictionary-v1",
@@ -130,7 +131,7 @@ def test_approved_display_policy_resolves_ids_and_is_deny_by_default(context):
         row[0]
         for row in connection.execute(
             "SELECT dictionary_id FROM data_dictionary WHERE is_active=1 "
-            "AND deprecated_version_id IS NULL"
+            "AND deprecated_version_id IS NULL AND storage_type='FLEX'"
         )
     }
     assert policy.allowed_dictionary_ids == expected

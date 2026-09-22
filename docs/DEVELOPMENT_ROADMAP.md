@@ -759,6 +759,15 @@ Phase 10B는 `.xlsx` 파일 선택·비동기 hash/workbook 확인·단일 works
 남기며 실제 재Import 확인은 Phase 10D 직전에 다시 받는다. 10B는 연구 DB를 변경하지
 않으며 컬럼 매핑/Preview(10C)와 Import 실행(10D)은 아직 구현하지 않는다.
 
+Phase 10C는 저장된 10B 작업을 이어 받아 공통 또는 명시적으로 선택한 자료 범위에서
+등록 별칭의 정확한 자동 매핑, 허용 사전 항목의
+수동 매핑, 명시적 제외, Workspace checkpoint/재개, 기존 관리코드·Preview·Preparation
+Service를 통한 전체 행 검증과 최대 50행의 안전한 화면 표시를 연결한다. 연구 DB 쓰기와
+실제 Import 실행은 수행하지 않는다. 원본 단위는 추정하지 않는다. 별도 버전·fingerprint의
+Import core 정의 6개를 연구 사전 bootstrap과 같은 transaction에서 준비하되 연구 leaf 70개와
+표시 정책에는 포함하지 않는다. 이 prerequisite로 직접 관리코드와 구성요소 기반 관리코드의
+Preview/Preparation 준비가 가능하다. Import 실행은 Phase 10D 범위다.
+
 02~08 화면과 10 DB 관리, 16 설정을 연결한다. DB 관리에서 특성값 직접 수정은 금지하며 08 보정으로 연결한다. UI 설정은 QSettings/local config, Draft는 연구 DB 밖의 로컬 workspace 파일을 사용한다. Phase 5에서 마련한 저장·재개 Service를 GUI에 연결한다. Backup/Restore의 실제 기능은 Phase 14에서 연결·검증하며 이 단계에서 완료로 간주하지 않는다.
 
 ### 목표

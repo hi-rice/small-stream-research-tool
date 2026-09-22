@@ -163,6 +163,7 @@ def validate_research_manifest(manifest):
 
 class ResearchDictionaryBootstrapService:
     def __init__(self, connection):
+        self._connection = connection
         self._repo = DictionaryRepository(connection)
 
     def bootstrap(self, manifest=None):
@@ -193,6 +194,13 @@ class ResearchDictionaryBootstrapService:
                 items, alias_count = self._items(
                     manifest["items"], version.version_id, categories, units, stamp
                 )
+                # 하나의 명시적 사전 bootstrap 동작으로 Import prerequisite도 준비하되,
+                # 연구 manifest의 버전·fingerprint·표시 정책과는 분리한다.
+                from small_stream_research_tool.services.import_core_dictionary_bootstrap import (
+                    ImportCoreDictionaryBootstrapService,
+                )
+
+                ImportCoreDictionaryBootstrapService(self._connection).bootstrap()
                 current = self._repo.get_current_version()
                 if current is None or current.version_id != version.version_id:
                     self._repo.set_current_version(version.version_id)

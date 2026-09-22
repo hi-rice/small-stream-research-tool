@@ -116,7 +116,12 @@ def create_database(path):
         with closing(connect_database(path)) as connection:
             ResearchDictionaryBootstrapService(connection).bootstrap()
             dictionary = DictionaryRepository(connection)
-            items = dictionary.list_items()
+            approved = (
+                ResearchDictionaryBootstrapService(connection)
+                .approved_display_policy()
+                .allowed_dictionary_ids
+            )
+            items = [item for item in dictionary.list_items() if item.dictionary_id in approved]
             by_name = {item.internal_name: item for item in items}
             with transaction(connection):
                 streams = SmallStreamRepository(connection)

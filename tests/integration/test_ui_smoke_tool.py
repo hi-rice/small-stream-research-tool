@@ -56,7 +56,7 @@ def test_created_database_is_synthetic_unregistered_and_bootstrapped(smoke_datab
     with closing(connect_database(smoke_database)) as connection:
         assert connection.execute("SELECT count(*) FROM app_user").fetchone() == (0,)
         assert connection.execute("SELECT count(*) FROM small_stream").fetchone() == (5,)
-        assert connection.execute("SELECT count(*) FROM data_dictionary").fetchone() == (70,)
+        assert connection.execute("SELECT count(*) FROM data_dictionary").fetchone() == (76,)
         assert connection.execute(
             "SELECT count(*) FROM dictionary_version "
             "WHERE version='research-dictionary-v1' AND is_current=1"

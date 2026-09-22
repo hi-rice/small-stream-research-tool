@@ -280,7 +280,7 @@ def test_gui_offscreen_workflow_navigation_resume_logout(controller, workbook, a
     assert view.headers.horizontalScrollBar().maximum() > 0
     view.save_button.click()
     wait_for(app, lambda: bool(view.state and view.state.workspace_saved_at))
-    assert not view.next_button.isEnabled()
+    assert view.next_button.isEnabled()
     window.navigate("홈")
     assert window.stack.currentWidget() is window.home
     window.navigate("소하천 조회")
