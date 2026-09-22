@@ -20,8 +20,9 @@ class GuiSession:
 
 
 class ApplicationController:
-    def __init__(self, db_path: Path):
+    def __init__(self, db_path: Path, workspace_dir: Path | None = None):
         self.db_path = db_path
+        self.workspace_dir = workspace_dir
         initialize_database(db_path)
         self.connection = connect_database(db_path)
         self.auth_service = AuthService(UserRepository(self.connection))
@@ -46,7 +47,7 @@ class ApplicationController:
 
     def _authenticated(self, user):
         self.session = GuiSession(user.user_id, user.display_name, user.department, user.role)
-        self.main_window = MainWindow(self.db_path, self.session)
+        self.main_window = MainWindow(self.db_path, self.session, self.workspace_dir)
         self.main_window.logout_requested.connect(self.logout)
         self.main_window.show()
         self.login_window.close()

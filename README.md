@@ -1244,8 +1244,18 @@ message, note, 내부 ID, 경로를 화면에 표시하지 않는다. `QCReviewS
 `QC_REVIEW` 감사이력은 한 transaction으로 기록한다. Home·작업이력·마이페이지의 공개
 이력은 여섯 번째 event `QC_REVIEW`를 안전한 소하천·특성항목 대상으로 표시한다.
 
-Phase 10 GUI는 아직 구현되지 않았다. 한 실행의 Import 대상은 한 sheet이며 DB 저장 전까지만
+Phase 10A에서는 GUI를 구현하지 않았다. 한 실행의 Import 대상은 한 sheet이며 DB 저장 전까지만
 취소한다. 저장 시작 후 worker/thread/connection을 강제 종료하지 않고 Service의 결과를
 기다린다. 단계 기반 진행 상태를 사용하고 임의 퍼센트는 표시하지 않는다. Import 성공 후
 workspace는 자동 삭제하지 않는다. DB 관리 cache rebuild는 기존 명시적 Service를 재사용하며
 Backup/Restore는 Phase 14 범위다.
+
+## Phase 10B Excel 작업 시작 화면
+
+Sidebar의 **Excel 가져오기**는 `.xlsx` 선택 후 별도 worker에서 SHA-256과 workbook 구조를
+확인한다. 연구 DB의 동일 hash 이력은 파일명 기반 경고로만 표시한다. 한 번에 한 worksheet를
+선택하고 1-based 헤더 시작·종료행과 데이터 시작행을 지정한 뒤 **구조 확인**으로 조합된
+헤더만 본다. 데이터 샘플·원본 절대경로는 화면에 표시하지 않는다. 숨김 worksheet는 선택할
+수 있고 chartsheet와 빈 sheet는 제외한다. 확인한 범위는 연구 DB 밖의 사용자별 Workspace
+draft로 명시적으로 저장·재개하며, 재개 시 원본 hash를 다시 검증한다. 컬럼 매핑·Preview
+화면은 Phase 10C, 실제 DB Import 실행은 Phase 10D 범위다.

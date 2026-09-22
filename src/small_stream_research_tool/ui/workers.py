@@ -6,6 +6,7 @@ from PySide6.QtCore import QObject, QRunnable, Signal
 
 from small_stream_research_tool.database import connect_database
 from small_stream_research_tool.services.app_read_service import AppReadService
+from small_stream_research_tool.services.import_inspection_service import ImportInspectionService
 from small_stream_research_tool.services.stream_read_service import StreamReadService
 
 
@@ -76,3 +77,31 @@ class MyPageQueryTask(QRunnable):
             self.signals.finished.emit(
                 self.generation, None, "현재 사용자 정보를 확인할 수 없습니다."
             )
+
+
+class ImportInspectionTask(QRunnable):
+    """파일 I/O·hash·workbook·workspace 작업을 GUI thread 밖에서 실행한다."""
+
+    def __init__(self, db_path, workspace_dir, generation, operation, args):
+        super().__init__()
+        self.db_path = db_path
+        self.workspace_dir = workspace_dir
+        self.generation = generation
+        self.operation = operation
+        self.args = args
+        self.signals = QuerySignals()
+
+    def run(self):
+        try:
+            service = ImportInspectionService(self.db_path, self.workspace_dir)
+            result = getattr(service, self.operation)(*self.args)
+            self.signals.finished.emit(self.generation, result, None)
+        except Exception as error:
+            from small_stream_research_tool.models.import_workflow import ImportInspectionError
+
+            message = (
+                str(error)
+                if isinstance(error, ImportInspectionError)
+                else "작업을 완료하지 못했습니다."
+            )
+            self.signals.finished.emit(self.generation, None, message)

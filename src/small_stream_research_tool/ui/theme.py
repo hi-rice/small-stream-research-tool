@@ -52,6 +52,8 @@ QScrollArea#myPageScrollArea, QScrollArea#myPageScrollArea > QWidget > QWidget,
 QWidget#myPageContent { background: #F5F7FA; border: 0; }
 QScrollArea#homeScrollArea, QScrollArea#homeScrollArea > QWidget > QWidget,
 QWidget#homeContent { background: #F5F7FA; border: 0; }
+QScrollArea#importScrollArea, QScrollArea#importScrollArea > QWidget > QWidget,
+QWidget#importContent { background: #F5F7FA; border: 0; }
 QLabel#databaseState { color: #4B5563; background: transparent; }
 QLabel#databaseDot { color: #2F8A59; background: transparent; font-size: 16px; }
 QFrame#card, QGroupBox { background: white; border: 1px solid #D8DEE8; border-radius: 6px; }

@@ -753,6 +753,12 @@ Phase 10A에는 GUI·schema·migration·dependency 변경이 없다. GUI의 muta
 V1 Import는 한 번에 한 sheet만 실행하고, 성공 workspace를 자동 삭제하지 않는다.
 DB 상태/무결성 조회와 Settings local config는 Phase 10G에서 구체화한다.
 
+Phase 10B는 `.xlsx` 파일 선택·비동기 hash/workbook 확인·단일 worksheet 선택·헤더/데이터
+행 지정·헤더 구조 확인·사용자별 Workspace 저장/재개를 GUI에 연결한다. 화면에는 파일명과
+헤더만 표시하고 데이터 샘플·절대경로를 표시하지 않는다. 동일 hash 성공 이력은 경고로만
+남기며 실제 재Import 확인은 Phase 10D 직전에 다시 받는다. 10B는 연구 DB를 변경하지
+않으며 컬럼 매핑/Preview(10C)와 Import 실행(10D)은 아직 구현하지 않는다.
+
 02~08 화면과 10 DB 관리, 16 설정을 연결한다. DB 관리에서 특성값 직접 수정은 금지하며 08 보정으로 연결한다. UI 설정은 QSettings/local config, Draft는 연구 DB 밖의 로컬 workspace 파일을 사용한다. Phase 5에서 마련한 저장·재개 Service를 GUI에 연결한다. Backup/Restore의 실제 기능은 Phase 14에서 연결·검증하며 이 단계에서 완료로 간주하지 않는다.
 
 ### 목표

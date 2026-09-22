@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
 )
 
 from small_stream_research_tool.ui.home import HomeView
+from small_stream_research_tool.ui.import_workspace import ImportWorkspaceView
 from small_stream_research_tool.ui.my_page import MyPageView
 from small_stream_research_tool.ui.stream_detail import StreamDetailView
 from small_stream_research_tool.ui.stream_list import StreamListView
@@ -31,7 +32,7 @@ NAVIGATION = tuple(name for _section, names in NAVIGATION_SECTIONS for name in n
 class MainWindow(QMainWindow):
     logout_requested = Signal()
 
-    def __init__(self, db_path, session):
+    def __init__(self, db_path, session, workspace_dir=None):
         super().__init__()
         self.session = session
         self.setWindowTitle("소하천 데이터 관리")
@@ -60,6 +61,8 @@ class MainWindow(QMainWindow):
         self.stack.addWidget(self.placeholder)
         self.home = HomeView(db_path)
         self.stack.addWidget(self.home)
+        self.import_workspace = ImportWorkspaceView(db_path, session.user_id, workspace_dir)
+        self.stack.addWidget(self.import_workspace)
         self.stream_list = StreamListView(db_path)
         self.stack.addWidget(self.stream_list)
         self.stream_detail = StreamDetailView(db_path)
@@ -161,6 +164,8 @@ class MainWindow(QMainWindow):
         return topbar
 
     def navigate(self, name):
+        if self.stack.currentWidget() is self.import_workspace and name != "Excel 가져오기":
+            self.import_workspace.deactivate()
         for key, button in self.nav_buttons.items():
             button.setObjectName("navSelected" if key == name else "navButton")
             button.style().unpolish(button)
@@ -168,6 +173,9 @@ class MainWindow(QMainWindow):
         if name == "홈":
             self.stack.setCurrentWidget(self.home)
             self.home.refresh()
+        elif name == "Excel 가져오기":
+            self.stack.setCurrentWidget(self.import_workspace)
+            self.import_workspace.activate()
         elif name == "소하천 조회":
             self.stack.setCurrentWidget(self.stream_list)
         elif name == "작업이력":
@@ -205,4 +213,6 @@ class MainWindow(QMainWindow):
         self.work_history._actor_generation += 1
         self.my_page._closed = True
         self.my_page._generation += 1
+        self.import_workspace._closed = True
+        self.import_workspace._generation += 1
         super().closeEvent(event)
