@@ -1266,6 +1266,27 @@ Workspace에 사전·근거 fingerprint 및 매핑 generation과 함께 저장�
 Preparation은 확인된 source notation을 `original_unit`으로 전달한다. 실제 Import 실행은 여전히
 Phase 10D 범위다. schema·migration·dependency 변경은 없다.
 
+## Phase 10D Import 실행·Import 이력
+
+10C Preview가 준비 완료된 동일 Workspace에서만 최종 실행 화면으로 이동한다. 실행 직전
+원본 hash, sheet/header/data 범위, mapping generation, V2 research fingerprint, unit-evidence
+fingerprint와 source-unit confirmation을 다시 검증하고 Preparation을 다시 생성한다. V1 또는
+불일치 사전에서는 자동 upgrade하지 않고 실행을 차단한다. 동일 hash의 과거 SUCCESS 이력과
+실제 DB mutation은 각각 사용자에게 명시적으로 확인받으며, 빠른 재클릭은 하나의 mutation
+worker만 시작한다.
+
+저장은 기존 `ImportExecutionService`의 분리된 A/B/C transaction을 그대로 사용한다. A는
+source/import RUNNING 이력을 만들고, B는 sheet·mapping·신규 stream·characteristic value를
+원자적으로 저장하며, C는 SUCCESS/FAILED를 확정한다. B commit 뒤 C가 실패하면 전체 rollback으로
+표현하지 않고 `RECOVERY_REQUIRED`로 안내한다. 기존 `ImportRecoveryService`의 근거 검사를 통과한
+RUNNING 이력만 **상태 복구**로 SUCCESS finalize할 수 있으며 데이터를 다시 Import하지 않는다.
+SUCCESS 후 Workspace는 삭제하지 않고 `COMPLETED` checkpoint로 보존한다. Import만으로 현재
+사용값을 선택하거나 QC를 실행하지 않는다.
+
+**Import 이력** 화면은 안전한 projection을 newest-first `COUNT + LIMIT/OFFSET`으로 조회한다.
+파일명, sheet, 상태, 시작·완료 시각, 저장·제외 행과 점검 필요 상태만 표시하며 내부 ID, 전체
+경로, hash, 원본 셀·오류를 노출하지 않는다. schema·migration·dependency 변경은 없다.
+
 ## Phase 10B Excel 작업 시작 화면
 
 Sidebar의 **Excel 가져오기**는 `.xlsx` 선택 후 별도 worker에서 SHA-256과 workbook 구조를

@@ -10,13 +10,22 @@ class Phase10QueryRepository:
 
     def page_imports(self, limit, offset):
         return self._connection.execute(
-            "SELECT f.file_name,(SELECT sh.sheet_name FROM import_sheet sh "
+            "SELECT h.import_id,f.file_name,(SELECT sh.sheet_name FROM import_sheet sh "
             "WHERE sh.import_id=h.import_id ORDER BY sh.import_sheet_id LIMIT 1),"
             "h.status,h.started_at,h.finished_at,h.accepted_rows,h.rejected_rows "
             "FROM import_history h JOIN source_file f ON f.source_file_id=h.source_file_id "
             "ORDER BY h.import_id DESC LIMIT ? OFFSET ?",
             (limit, offset),
         ).fetchall()
+
+    def page_import_ids(self, limit, offset):
+        return tuple(
+            row[0]
+            for row in self._connection.execute(
+                "SELECT import_id FROM import_history ORDER BY import_id DESC LIMIT ? OFFSET ?",
+                (limit, offset),
+            ).fetchall()
+        )
 
     def same_hash(self, digest, limit):
         return self._connection.execute(

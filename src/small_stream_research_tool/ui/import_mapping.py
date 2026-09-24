@@ -22,6 +22,7 @@ from small_stream_research_tool.ui.workers import ImportMappingTask
 
 class ImportMappingView(QWidget):
     back_requested = Signal()
+    execution_requested = Signal(object)
 
     def __init__(self, db_path, user_id, workspace_dir=None):
         super().__init__()
@@ -185,7 +186,7 @@ class ImportMappingView(QWidget):
         footer.addStretch()
         self.next_button = QPushButton("다음: Import 실행")
         self.next_button.setEnabled(False)
-        self.next_button.setToolTip("실제 Import 실행은 Phase 10D에서 연결됩니다.")
+        self.next_button.clicked.connect(self._next)
         footer.addWidget(self.next_button)
         layout.addLayout(footer)
         layout.addStretch()
@@ -364,6 +365,18 @@ class ImportMappingView(QWidget):
         self.scope_button.setEnabled(bool(self.state and not busy))
         self.preview_button.setEnabled(bool(self.state and not busy))
         self.back_button.setEnabled(not busy)
+        self.next_button.setEnabled(
+            bool(
+                self.state
+                and self.state.preview
+                and self.state.preview.ready_for_import_preparation
+                and not busy
+            )
+        )
+
+    def _next(self):
+        if self.next_button.isEnabled() and self.state is not None:
+            self.execution_requested.emit(self.state)
 
     def deactivate(self):
         self._generation += 1

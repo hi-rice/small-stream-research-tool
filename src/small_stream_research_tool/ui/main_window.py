@@ -6,6 +6,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QMainWindow,
+    QMessageBox,
     QPushButton,
     QSizePolicy,
     QStackedWidget,
@@ -14,6 +15,8 @@ from PySide6.QtWidgets import (
 )
 
 from small_stream_research_tool.ui.home import HomeView
+from small_stream_research_tool.ui.import_execution import ImportExecutionView
+from small_stream_research_tool.ui.import_history import ImportHistoryView
 from small_stream_research_tool.ui.import_mapping import ImportMappingView
 from small_stream_research_tool.ui.import_workspace import ImportWorkspaceView
 from small_stream_research_tool.ui.my_page import MyPageView
@@ -23,7 +26,17 @@ from small_stream_research_tool.ui.work_history import WorkHistoryView
 
 NAVIGATION_SECTIONS = (
     (None, ("홈",)),
-    ("데이터 관리", ("Excel 가져오기", "품질검사(QC)", "특성정보 보정", "소하천 조회", "DB 관리")),
+    (
+        "데이터 관리",
+        (
+            "Excel 가져오기",
+            "Import 이력",
+            "품질검사(QC)",
+            "특성정보 보정",
+            "소하천 조회",
+            "DB 관리",
+        ),
+    ),
     ("분석", ("기초통계", "그래프 분석")),
     (None, ("결과 내보내기", "작업이력")),
 )
@@ -66,8 +79,21 @@ class MainWindow(QMainWindow):
         self.stack.addWidget(self.import_workspace)
         self.import_mapping = ImportMappingView(db_path, session.user_id, workspace_dir)
         self.stack.addWidget(self.import_mapping)
+        self.import_execution = ImportExecutionView(db_path, session.user_id, workspace_dir)
+        self.stack.addWidget(self.import_execution)
+        self.import_history = ImportHistoryView(db_path, session.user_id, workspace_dir)
+        self.stack.addWidget(self.import_history)
         self.import_workspace.mapping_requested.connect(self.show_import_mapping)
         self.import_mapping.back_requested.connect(self.show_import_structure)
+        self.import_mapping.execution_requested.connect(self.show_import_execution)
+        self.import_execution.back_requested.connect(self.show_import_preview)
+        self.import_execution.history_requested.connect(lambda: self.navigate("Import 이력"))
+        self.import_execution.import_completed.connect(self._mark_stream_list_dirty)
+        self.import_history.back_requested.connect(lambda: self.navigate("Excel 가져오기"))
+        self.import_execution.mutation_state_changed.connect(self._mutation_state)
+        self.import_history.mutation_state_changed.connect(self._mutation_state)
+        self._mutation_active = False
+        self._stream_list_dirty = False
         self._import_step = "structure"
         self.stream_list = StreamListView(db_path)
         self.stack.addWidget(self.stream_list)
@@ -174,6 +200,10 @@ class MainWindow(QMainWindow):
             self.import_workspace.deactivate()
         if self.stack.currentWidget() is self.import_mapping and name != "Excel 가져오기":
             self.import_mapping.deactivate()
+        if self.stack.currentWidget() is self.import_execution and name != "Excel 가져오기":
+            self.import_execution.deactivate()
+        if self.stack.currentWidget() is self.import_history and name != "Import 이력":
+            self.import_history.deactivate()
         for key, button in self.nav_buttons.items():
             button.setObjectName("navSelected" if key == name else "navButton")
             button.style().unpolish(button)
@@ -182,14 +212,22 @@ class MainWindow(QMainWindow):
             self.stack.setCurrentWidget(self.home)
             self.home.refresh()
         elif name == "Excel 가져오기":
-            if self._import_step == "mapping":
+            if self._import_step == "execution":
+                self.stack.setCurrentWidget(self.import_execution)
+            elif self._import_step == "mapping":
                 self.stack.setCurrentWidget(self.import_mapping)
                 self.import_mapping.resume_workflow()
             else:
                 self.stack.setCurrentWidget(self.import_workspace)
                 self.import_workspace.activate()
+        elif name == "Import 이력":
+            self.stack.setCurrentWidget(self.import_history)
+            self.import_history.activate()
         elif name == "소하천 조회":
             self.stack.setCurrentWidget(self.stream_list)
+            if self._stream_list_dirty:
+                self._stream_list_dirty = False
+                self.stream_list.refresh()
         elif name == "작업이력":
             self.stack.setCurrentWidget(self.work_history)
             self.work_history.activate()
@@ -214,6 +252,29 @@ class MainWindow(QMainWindow):
         self.stack.setCurrentWidget(self.import_workspace)
         self.import_workspace.activate()
 
+    def show_import_execution(self, state):
+        self._import_step = "execution"
+        self.stack.setCurrentWidget(self.import_execution)
+        self.import_execution.open_workflow(state)
+
+    def show_import_preview(self):
+        if self._mutation_active:
+            return
+        self._import_step = "mapping"
+        self.stack.setCurrentWidget(self.import_mapping)
+        if self.import_execution.state is not None:
+            self.import_mapping.state = self.import_execution.state
+            self.import_mapping._show_mapping()
+            self.import_mapping._show_preview()
+            self.import_mapping._controls()
+
+    def _mutation_state(self, active):
+        self._mutation_active = active
+        self.logout_button.setEnabled(not active)
+
+    def _mark_stream_list_dirty(self):
+        self._stream_list_dirty = True
+
     def show_stream_detail(self, stream_code):
         self.stack.setCurrentWidget(self.stream_detail)
         self.stream_detail.load_stream(stream_code)
@@ -230,6 +291,14 @@ class MainWindow(QMainWindow):
         self.work_history.activate(user_id)
 
     def closeEvent(self, event):
+        if self._mutation_active:
+            QMessageBox.information(
+                self,
+                "가져오기 진행 중",
+                "가져오기 작업이 진행 중입니다. 완료 후 프로그램을 종료해 주세요.",
+            )
+            event.ignore()
+            return
         self.home._closed = True
         self.home._generation += 1
         self.stream_list._closed = True
@@ -243,4 +312,8 @@ class MainWindow(QMainWindow):
         self.import_workspace._generation += 1
         self.import_mapping._closed = True
         self.import_mapping._generation += 1
+        self.import_execution._closed = True
+        self.import_execution._generation += 1
+        self.import_history._closed = True
+        self.import_history._generation += 1
         super().closeEvent(event)

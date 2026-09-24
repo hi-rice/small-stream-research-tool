@@ -185,6 +185,7 @@ class ImportInspectionService:
                 WorkspaceStep.MAPPING,
                 WorkspaceStep.CODE_VALIDATION,
                 WorkspaceStep.PREVIEW,
+                WorkspaceStep.COMPLETED,
             ):
                 raise ImportInspectionError("이 작업 단계는 현재 화면에서 재개할 수 없습니다.")
             if draft.selected_sheet_name is None or draft.header_start_row is None:

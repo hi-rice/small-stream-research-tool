@@ -56,6 +56,7 @@ class PreviewSummary:
     unit_review_count: int
     unit_mismatch_count: int = 0
     unit_unresolved_count: int = 0
+    workflow_generation: str = field(default="", repr=False)
 
 
 @dataclass(frozen=True)

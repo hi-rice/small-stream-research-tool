@@ -776,6 +776,14 @@ Phase 10C-2는 연구 사전 V1 resource를 보존한 채 V2를 추가한다. V2
 미해결 항목은 Preview/Import 준비를 차단하고 무차원 확정 항목은 `해당 없음`으로 표시한다.
 실제 Import 실행과 Phase 10D GUI는 이 단계에 포함하지 않는다.
 
+Phase 10D는 10C의 동일 Preview generation을 실행 직전에 다시 검증하고 기존 Phase 6
+`ImportExecutionService`의 A/B/C transaction을 mutation worker에서 정확히 한 번 호출한다.
+동일 hash SUCCESS 이력과 mutation 시작은 별도 확인을 요구하며, V2 research/evidence/unit
+confirmation이 stale하거나 unresolved이면 실행을 차단한다. SUCCESS/FAILED와 B commit 후 C 실패의
+`RECOVERY_REQUIRED`를 구분하고, 기존 `ImportRecoveryService`가 일관성을 확인한 RUNNING 이력만
+상태 finalize 복구한다. Import 이력은 newest-first DB pagination으로 표시한다. Import 성공만으로
+current-use를 선택하거나 QC를 실행하지 않으며 Phase 10E에서 QC 화면을 연결한다.
+
 02~08 화면과 10 DB 관리, 16 설정을 연결한다. DB 관리에서 특성값 직접 수정은 금지하며 08 보정으로 연결한다. UI 설정은 QSettings/local config, Draft는 연구 DB 밖의 로컬 workspace 파일을 사용한다. Phase 5에서 마련한 저장·재개 Service를 GUI에 연결한다. Backup/Restore의 실제 기능은 Phase 14에서 연결·검증하며 이 단계에서 완료로 간주하지 않는다.
 
 ### 목표

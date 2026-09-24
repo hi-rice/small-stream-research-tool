@@ -304,15 +304,29 @@ class ImportPreparationService:
             and (item.unit_id is None or (unit is not None and unit.is_active))
         )
 
-    def iter_prepared_rows(self, rows, *, field_policy=None) -> Iterator[PreparedImportRow]:
+    def iter_prepared_rows(
+        self, rows, *, field_policy=None, unit_confirmations=None
+    ) -> Iterator[PreparedImportRow]:
         seen = set()
         for row in rows:
-            prepared = self.prepare_row(row, field_policy=field_policy)
+            prepared = self.prepare_row(
+                row,
+                field_policy=field_policy,
+                unit_confirmations=unit_confirmations,
+            )
             if prepared.source_row in seen:
                 raise InvalidPreparationArgumentError("원본 행 번호가 중복됩니다.")
             seen.add(prepared.source_row)
             yield prepared
 
-    def prepare(self, rows, *, field_policy=None) -> ImportPreparationResult:
-        prepared = tuple(self.iter_prepared_rows(rows, field_policy=field_policy))
+    def prepare(
+        self, rows, *, field_policy=None, unit_confirmations=None
+    ) -> ImportPreparationResult:
+        prepared = tuple(
+            self.iter_prepared_rows(
+                rows,
+                field_policy=field_policy,
+                unit_confirmations=unit_confirmations,
+            )
+        )
         return ImportPreparationResult(prepared, preparation_summary(prepared))

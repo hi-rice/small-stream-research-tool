@@ -17,6 +17,7 @@ from small_stream_research_tool.models.phase10_read import (
 from small_stream_research_tool.repositories.phase10_query_repository import (
     Phase10QueryRepository,
 )
+from small_stream_research_tool.services.import_recovery_service import ImportRecoveryService
 from small_stream_research_tool.services.research_dictionary_bootstrap import (
     ResearchDictionaryBootstrapService,
 )
@@ -88,20 +89,20 @@ class Phase10ReadService:
                 rows = self._repository.page_imports(
                     request.page_size, (request.page - 1) * request.page_size
                 )
-            items = tuple(
-                ImportHistoryItem(
-                    _file_name(row[0]),
-                    *row[1:],
-                    "INSPECTION_REQUIRED" if row[2] == "RUNNING" else "NONE",
-                )
-                for row in rows
-            )
+            recovery = ImportRecoveryService(self._connection)
+            items = []
+            for row in rows:
+                import_id, public = row[0], row[1:]
+                state = "NONE"
+                if public[2] == "RUNNING":
+                    state = recovery.inspect(import_id).recovery_state.value
+                items.append(ImportHistoryItem(_file_name(public[0]), *public[1:], state))
             return ImportHistoryPage(
                 total,
                 request.page,
                 request.page_size,
                 (total + request.page_size - 1) // request.page_size,
-                items,
+                tuple(items),
             )
         except Exception:
             raise Phase10ReadError() from None

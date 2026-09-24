@@ -407,7 +407,7 @@ def test_gui_10b_to_10c_preview_back_and_logout(tmp_path):
         assert mapping.state.preview.total == 1
         assert mapping.preview_table.rowCount() == 1
         assert mapping.state.preview.ready_for_import_preparation
-        assert not mapping.next_button.isEnabled()
+        assert mapping.next_button.isEnabled()
         window.navigate("홈")
         window.navigate("Excel 가져오기")
         assert window.stack.currentWidget() is mapping

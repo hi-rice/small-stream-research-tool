@@ -664,6 +664,15 @@ class ImportMappingWorkflowService:
                     or confirmations != draft.unit_confirmations
                 ):
                     raise MappingWorkflowError("현재 매핑의 원본 단위를 다시 확인해 주세요.")
+                current = DictionaryRepository(connection).get_current_version()
+                if current is None:
+                    raise MappingWorkflowError("연구 사전 상태를 확인해야 합니다.")
+                research_fingerprint = manifest_fingerprint(load_research_manifest(current.version))
+                evidence_fingerprint = (
+                    ResearchUnitEvidenceService().load().fingerprint
+                    if current.version == "research-dictionary-v2"
+                    else ""
+                )
                 preview_service = ImportPreviewService(
                     dictionary, StreamLookupRepository(connection)
                 )
@@ -740,6 +749,12 @@ class ImportMappingWorkflowService:
                         unit_review,
                         unit_mismatch,
                         unit_unresolved,
+                        _generation(
+                            source,
+                            mappings,
+                            research_fingerprint,
+                            evidence_fingerprint,
+                        ),
                     ),
                     unit_confirmations=confirmations,
                     unit_options=options,
@@ -752,3 +767,72 @@ class ImportMappingWorkflowService:
             ) from None
         except Exception:
             raise MappingWorkflowError("Preview를 생성하지 못했습니다.") from None
+
+    def prepare_execution(self, state, user_id):
+        """Rebuild the reviewed Preview and return private execution inputs."""
+        if (
+            type(state) is not MappingWorkflowState
+            or state.preview is None
+            or not state.preview.ready_for_import_preparation
+            or not state.preview.workflow_generation
+        ):
+            raise MappingWorkflowError("Import 실행 전에 Preview를 다시 확인해 주세요.")
+        reviewed_generation = state.preview.workflow_generation
+        fresh = self.preview(state, user_id)
+        if (
+            fresh.preview is None
+            or not fresh.preview.ready_for_import_preparation
+            or fresh.preview.workflow_generation != reviewed_generation
+        ):
+            raise MappingWorkflowError("검토한 Preview가 변경되었습니다. 다시 확인해 주세요.")
+        try:
+            workspace = WorkspaceService(self._workspace_dir)
+            draft = workspace.load_workspace(user_id)
+            if draft is None or draft.saved_at != fresh.saved_at:
+                raise MappingWorkflowError("저장된 Preview를 다시 확인해 주세요.")
+            source = self._source(fresh.source, draft)
+            with closing(connect_database(self._db_path)) as connection:
+                dictionary, policies, candidates = self._dictionary(connection)
+                current = DictionaryRepository(connection).get_current_version()
+                if current is None or current.version != "research-dictionary-v2":
+                    raise MappingWorkflowError("연구 사전 상태를 확인해야 합니다.")
+                mappings = ColumnMappingService(dictionary).revalidate_mappings(fresh.mappings)
+                if mappings != fresh.mappings:
+                    raise MappingWorkflowError("연구 사전 매핑을 다시 확인해 주세요.")
+                confirmations, _options = self._unit_policy(
+                    connection, source, mappings, candidates, fresh.unit_confirmations
+                )
+                if confirmations != fresh.unit_confirmations:
+                    raise MappingWorkflowError("현재 매핑의 원본 단위를 다시 확인해 주세요.")
+                preview_service = ImportPreviewService(
+                    dictionary, StreamLookupRepository(connection)
+                )
+                preparation_service = ImportPreparationService(dictionary)
+                with ExcelReader(source.source_path) as reader:
+                    rows = reader.iter_rows(
+                        source.selected_sheet,
+                        header_start_row=source.header_start_row,
+                        header_end_row=source.header_end_row,
+                        data_start_row=source.data_start_row,
+                    )
+                    preview_rows = preview_service.iter_preview_rows(
+                        rows, mappings, field_policy=policies.preview
+                    )
+                    preparation = preparation_service.prepare(
+                        preview_rows,
+                        field_policy=policies.import_fields,
+                        unit_confirmations=confirmations or None,
+                    )
+                if file_sha256(source.source_path) != source.file_hash:
+                    raise MappingWorkflowError("Import 준비 중 원본 파일이 변경되었습니다.")
+                if preparation.summary.blocked_rows or not preparation.summary.ready_rows:
+                    raise MappingWorkflowError("Import 준비 결과를 다시 확인해 주세요.")
+                return fresh, preparation, current.version_id, policies.import_fields
+        except MappingWorkflowError:
+            raise
+        except (WorkspaceSourceChangedError, WorkspaceSourceMissingError):
+            raise MappingWorkflowError(
+                "원본 파일이 변경되었습니다. Preview를 다시 확인해 주세요."
+            ) from None
+        except Exception:
+            raise MappingWorkflowError("Import 실행 입력을 준비하지 못했습니다.") from None

@@ -13,6 +13,7 @@ class WorkspaceStep(StrEnum):
     MAPPING = "MAPPING"
     CODE_VALIDATION = "CODE_VALIDATION"
     PREVIEW = "PREVIEW"
+    COMPLETED = "COMPLETED"
 
 
 @dataclass(frozen=True)
