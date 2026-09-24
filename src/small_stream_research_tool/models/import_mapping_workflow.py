@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 
 from small_stream_research_tool.models.column_mapping import ColumnMappingDraft
 from small_stream_research_tool.models.import_workflow import ImportWorkflowState
+from small_stream_research_tool.models.source_unit import SourceUnitConfirmation
 
 
 @dataclass(frozen=True)
@@ -12,6 +13,14 @@ class MappingCandidate:
     label: str = ""
     category: str = ""
     unit: str = ""
+    internal_name: str = ""
+    unit_id: int | None = field(default=None, repr=False)
+
+
+@dataclass(frozen=True)
+class UnitOption:
+    unit_id: int = field(repr=False)
+    symbol: str = ""
 
 
 @dataclass(frozen=True)
@@ -23,6 +32,8 @@ class MappingRow:
     target: str
     unit: str
     sensitive: bool
+    source_unit: str = "—"
+    unit_status: str = "—"
 
 
 @dataclass(frozen=True)
@@ -43,6 +54,8 @@ class PreviewSummary:
     displayed: tuple[PreviewRowSummary, ...]
     ready_for_import_preparation: bool
     unit_review_count: int
+    unit_mismatch_count: int = 0
+    unit_unresolved_count: int = 0
 
 
 @dataclass(frozen=True)
@@ -54,6 +67,8 @@ class MappingWorkflowState:
     saved_at: str | None = None
     preview: PreviewSummary | None = None
     source_scope: str | None = None
+    unit_confirmations: tuple[SourceUnitConfirmation, ...] = field(default=(), repr=False)
+    unit_options: tuple[UnitOption, ...] = ()
 
 
 class MappingWorkflowError(Exception):

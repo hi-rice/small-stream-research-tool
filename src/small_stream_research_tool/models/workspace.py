@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 
 from small_stream_research_tool.models.column_mapping import ColumnMappingDraft
+from small_stream_research_tool.models.source_unit import SourceUnitConfirmation
 
 
 class WorkspaceStep(StrEnum):
@@ -28,6 +29,7 @@ class WorkspaceDraft:
     current_step: WorkspaceStep
     saved_at: str
     source_scope: str | None = None
+    unit_confirmations: tuple[SourceUnitConfirmation, ...] = ()
 
 
 @dataclass(frozen=True)

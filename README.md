@@ -1250,6 +1250,22 @@ Phase 10A에서는 GUI를 구현하지 않았다. 한 실행의 Import 대상은
 workspace는 자동 삭제하지 않는다. DB 관리 cache rebuild는 기존 명시적 Service를 재사용하며
 Backup/Restore는 Phase 14 범위다.
 
+## Phase 10C-2 연구 사전 V2·원본 단위 확인
+
+`research-dictionary-v2`는 V1의 70개 항목과 식별자를 유지하며 도달시간·저류상수에 `hr`,
+초기손실에 `mm`, 기점·종점 계획빈도에 `year`만 추가한다. 기존 V1 resource와 fingerprint는
+변경하지 않는다. V1→V2 전환은 이 다섯 항목에 활성·비활성 구분 없이 저장된 특성값이나
+관련 참조가 하나라도 있으면 전체 rollback한다. 안전한 무사용 DB에서만 한 transaction으로
+단위 정의를 갱신하고 V2를 current로 전환하며 `created_version_id`는 보존한다.
+
+V2 매핑에서는 연구 단위 근거 resource와 현재 사전 fingerprint를 함께 검증한다. 단위가 있는
+항목은 사용자가 canonical 원본 단위를 명시적으로 확인해야 하며 불일치 상태에서는 Preview가
+차단된다. 무차원으로 확정된 유역형상계수·하상경사는 `해당 없음`으로 처리한다. 근거가 아직
+확정되지 않은 13개 항목은 단위를 추정하지 않고 미해결 상태로 차단한다. 확인 결과는 사용자별
+Workspace에 사전·근거 fingerprint 및 매핑 generation과 함께 저장되며 매핑 변경 시 무효화된다.
+Preparation은 확인된 source notation을 `original_unit`으로 전달한다. 실제 Import 실행은 여전히
+Phase 10D 범위다. schema·migration·dependency 변경은 없다.
+
 ## Phase 10B Excel 작업 시작 화면
 
 Sidebar의 **Excel 가져오기**는 `.xlsx` 선택 후 별도 worker에서 SHA-256과 workbook 구조를

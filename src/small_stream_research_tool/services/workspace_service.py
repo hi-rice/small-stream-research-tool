@@ -17,6 +17,11 @@ from small_stream_research_tool.models.column_mapping import (
     MappingStatus,
 )
 from small_stream_research_tool.models.mapping_errors import InvalidMappingError
+from small_stream_research_tool.models.source_unit import (
+    SourceUnitConfirmation,
+    UnitApplicability,
+    UnitConfirmationStatus,
+)
 from small_stream_research_tool.models.workspace import WorkspaceDraft, WorkspaceStep
 from small_stream_research_tool.models.workspace_errors import (
     InvalidWorkspaceError,
@@ -31,7 +36,7 @@ from small_stream_research_tool.services.column_mapping_service import validate_
 from small_stream_research_tool.utils.file_hash import file_sha256
 from small_stream_research_tool.utils.timestamps import utc_now_text
 
-WORKSPACE_VERSION = 1
+WORKSPACE_VERSION = 2
 MAX_WORKSPACE_BYTES = 8 * 1024 * 1024
 
 # 저장 경계의 보수적 거부 규칙이다. 자료 의미/QC를 판정하거나 값을 마스킹해 저장하지 않는다.
@@ -137,6 +142,28 @@ def _validate(workspace, current_user_id):
             _metadata_text(part.text, optional=True, blank=True)
             _metadata_text(part.anchor_text, optional=True, blank=True)
             _metadata_text(part.merged_range, optional=True)
+    if type(workspace.unit_confirmations) is not tuple:
+        raise InvalidWorkspaceError("단위 확인 목록 형식이 올바르지 않습니다.")
+    mapped = {m.source_column_index: m.dictionary_id for m in workspace.column_mappings}
+    seen = set()
+    for confirmation in workspace.unit_confirmations:
+        if type(confirmation) is not SourceUnitConfirmation:
+            raise InvalidWorkspaceError("단위 확인 형식이 올바르지 않습니다.")
+        if (
+            confirmation.source_column_index in seen
+            or mapped.get(confirmation.source_column_index) is None
+        ):
+            raise InvalidWorkspaceError("현재 매핑과 단위 확인이 일치하지 않습니다.")
+        seen.add(confirmation.source_column_index)
+        _metadata_text(confirmation.mapped_internal_name)
+        _metadata_text(confirmation.source_notation, optional=True)
+        for digest in (
+            confirmation.mapping_generation,
+            confirmation.research_fingerprint,
+            confirmation.evidence_fingerprint,
+        ):
+            if not isinstance(digest, str) or not re.fullmatch(r"[0-9a-f]{64}", digest):
+                raise InvalidWorkspaceError("단위 확인 generation 형식이 올바르지 않습니다.")
 
 
 def _exact_keys(data, model):
@@ -158,11 +185,11 @@ def _decode(payload, current_user_id):
         data = json.loads(payload, object_pairs_hook=_no_duplicate_keys)
         if type(data) is not dict or "workspace_version" not in data:
             raise InvalidWorkspaceError("Workspace 버전 필드가 필요합니다.")
-        if (
-            type(data["workspace_version"]) is not int
-            or data["workspace_version"] != WORKSPACE_VERSION
-        ):
+        if type(data["workspace_version"]) is not int or data["workspace_version"] not in (1, 2):
             raise UnsupportedWorkspaceVersionError("지원하지 않는 Workspace 버전입니다.")
+        if data["workspace_version"] == 1:
+            data["workspace_version"] = 2
+            data["unit_confirmations"] = []
         _exact_keys(data, WorkspaceDraft)
         if type(data["column_mappings"]) is not list:
             raise InvalidWorkspaceError("Workspace 매핑 배열이 필요합니다.")
@@ -185,10 +212,23 @@ def _decode(payload, current_user_id):
                     }
                 )
             )
+        confirmations = []
+        for raw in data["unit_confirmations"]:
+            _exact_keys(raw, SourceUnitConfirmation)
+            confirmations.append(
+                SourceUnitConfirmation(
+                    **{
+                        **raw,
+                        "applicability": UnitApplicability(raw["applicability"]),
+                        "status": UnitConfirmationStatus(raw["status"]),
+                    }
+                )
+            )
         workspace = WorkspaceDraft(
             **{
                 **data,
                 "column_mappings": tuple(mappings),
+                "unit_confirmations": tuple(confirmations),
                 "current_step": WorkspaceStep(data["current_step"]),
             }
         )

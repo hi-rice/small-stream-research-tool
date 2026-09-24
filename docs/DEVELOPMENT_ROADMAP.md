@@ -768,6 +768,14 @@ Import core 정의 6개를 연구 사전 bootstrap과 같은 transaction에서 �
 표시 정책에는 포함하지 않는다. 이 prerequisite로 직접 관리코드와 구성요소 기반 관리코드의
 Preview/Preparation 준비가 가능하다. Import 실행은 Phase 10D 범위다.
 
+Phase 10C-2는 연구 사전 V1 resource를 보존한 채 V2를 추가한다. V2의 변경은 도달시간·
+저류상수 `hr`, 초기손실 `mm`, 기점·종점 계획빈도 `year`의 다섯 단위뿐이다. 무사용 V1은
+원자적으로 V2로 전환할 수 있지만 다섯 항목의 특성값 또는 관련 참조가 하나라도 존재하면
+전체 전환을 거부한다. 매핑 Workspace에는 원본 단위 확인과 사전·근거 fingerprint를 저장하며,
+명시적으로 확인된 정확한 단위만 Preparation의 `original_unit`으로 전달한다. 불일치와 근거
+미해결 항목은 Preview/Import 준비를 차단하고 무차원 확정 항목은 `해당 없음`으로 표시한다.
+실제 Import 실행과 Phase 10D GUI는 이 단계에 포함하지 않는다.
+
 02~08 화면과 10 DB 관리, 16 설정을 연결한다. DB 관리에서 특성값 직접 수정은 금지하며 08 보정으로 연결한다. UI 설정은 QSettings/local config, Draft는 연구 DB 밖의 로컬 workspace 파일을 사용한다. Phase 5에서 마련한 저장·재개 Service를 GUI에 연결한다. Backup/Restore의 실제 기능은 Phase 14에서 연결·검증하며 이 단계에서 완료로 간주하지 않는다.
 
 ### 목표

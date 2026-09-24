@@ -55,7 +55,7 @@ def test_save_load_metadata_and_no_raw_data(context):
     assert not path.exists() and service.load_workspace(1) is None
     saved = service.save_workspace(draft, 1)
     data = json.loads(path.read_text(encoding="utf-8"))
-    assert data["workspace_version"] == 1 and data["user_id"] == 1
+    assert data["workspace_version"] == 2 and data["user_id"] == 1
     assert data["source_file_path"] == draft.source_file_path
     assert data["source_file_sha256"] == file_sha256(draft.source_file_path)
     assert data["selected_sheet_name"] == "Sheet"
@@ -106,7 +106,7 @@ def test_user_mismatch_save_and_load(context):
         service.load_workspace(1)
 
 
-@pytest.mark.parametrize("version", [0, 2, True, "1"])
+@pytest.mark.parametrize("version", [0, 3, True, "1"])
 def test_unsupported_version(context, version):
     service, draft, path = context
     service.save_workspace(draft, 1)

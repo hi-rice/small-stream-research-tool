@@ -1,0 +1,138 @@
+{
+  "evidence_version": "research-unit-evidence-v1",
+  "compatible_research_manifest_version": "research-dictionary-v2",
+  "compatible_research_manifest_fingerprint": "e20edceac9f62746940ca5dd75d4bafa253647986a4ac739ee2a4fd4bee0d33d",
+  "revision": "2026-09-24",
+  "items": [
+    {
+      "internal_name": "basin_shape_factor",
+      "applicability": "UNITLESS",
+      "approved_source_notations": [],
+      "evidence_id": "approved-research-unit-audit"
+    },
+    {
+      "internal_name": "stream_bed_slope",
+      "applicability": "UNITLESS",
+      "approved_source_notations": [],
+      "evidence_id": "approved-research-unit-audit"
+    },
+    {
+      "internal_name": "stream_density",
+      "applicability": "UNRESOLVED",
+      "approved_source_notations": [],
+      "evidence_id": "approved-research-unit-audit"
+    },
+    {
+      "internal_name": "stream_bed_coefficient",
+      "applicability": "UNRESOLVED",
+      "approved_source_notations": [],
+      "evidence_id": "approved-research-unit-audit"
+    },
+    {
+      "internal_name": "stream_order",
+      "applicability": "UNRESOLVED",
+      "approved_source_notations": [],
+      "evidence_id": "approved-research-unit-audit"
+    },
+    {
+      "internal_name": "stream_bifurcation_ratio",
+      "applicability": "UNRESOLVED",
+      "approved_source_notations": [],
+      "evidence_id": "approved-research-unit-audit"
+    },
+    {
+      "internal_name": "stream_length_ratio",
+      "applicability": "UNRESOLVED",
+      "approved_source_notations": [],
+      "evidence_id": "approved-research-unit-audit"
+    },
+    {
+      "internal_name": "meander_length",
+      "applicability": "UNRESOLVED",
+      "approved_source_notations": [],
+      "evidence_id": "approved-research-unit-audit"
+    },
+    {
+      "internal_name": "meander_wavelength",
+      "applicability": "UNRESOLVED",
+      "approved_source_notations": [],
+      "evidence_id": "approved-research-unit-audit"
+    },
+    {
+      "internal_name": "meander_index",
+      "applicability": "UNRESOLVED",
+      "approved_source_notations": [],
+      "evidence_id": "approved-research-unit-audit"
+    },
+    {
+      "internal_name": "runoff_coefficient",
+      "applicability": "UNRESOLVED",
+      "approved_source_notations": [],
+      "evidence_id": "approved-research-unit-audit"
+    },
+    {
+      "internal_name": "arrival_time",
+      "applicability": "UNIT_DEFINED",
+      "approved_source_notations": [
+        "hr"
+      ],
+      "evidence_id": "approved-research-unit-audit"
+    },
+    {
+      "internal_name": "storage_constant",
+      "applicability": "UNIT_DEFINED",
+      "approved_source_notations": [
+        "hr"
+      ],
+      "evidence_id": "approved-research-unit-audit"
+    },
+    {
+      "internal_name": "lag_time",
+      "applicability": "UNRESOLVED",
+      "approved_source_notations": [],
+      "evidence_id": "approved-research-unit-audit"
+    },
+    {
+      "internal_name": "initial_loss",
+      "applicability": "UNIT_DEFINED",
+      "approved_source_notations": [
+        "㎜"
+      ],
+      "evidence_id": "approved-research-unit-audit"
+    },
+    {
+      "internal_name": "cn_amc_i",
+      "applicability": "UNRESOLVED",
+      "approved_source_notations": [],
+      "evidence_id": "approved-research-unit-audit"
+    },
+    {
+      "internal_name": "cn_amc_ii",
+      "applicability": "UNRESOLVED",
+      "approved_source_notations": [],
+      "evidence_id": "approved-research-unit-audit"
+    },
+    {
+      "internal_name": "cn_amc_iii",
+      "applicability": "UNRESOLVED",
+      "approved_source_notations": [],
+      "evidence_id": "approved-research-unit-audit"
+    },
+    {
+      "internal_name": "source_plan_frequency",
+      "applicability": "UNIT_DEFINED",
+      "approved_source_notations": [
+        "년"
+      ],
+      "evidence_id": "approved-research-unit-audit"
+    },
+    {
+      "internal_name": "end_plan_frequency",
+      "applicability": "UNIT_DEFINED",
+      "approved_source_notations": [
+        "년"
+      ],
+      "evidence_id": "approved-research-unit-audit"
+    }
+  ]
+}

@@ -154,6 +154,13 @@ class StreamQueryRepository:
         rows = self._rows("SELECT description FROM dictionary_version WHERE version=?", (version,))
         return rows[0][0] if rows else None
 
+    def current_research_version(self):
+        rows = self._rows(
+            "SELECT version FROM dictionary_version WHERE is_current=1 "
+            "AND version LIKE 'research-dictionary-v%'"
+        )
+        return rows[0][0] if len(rows) == 1 else None
+
     def dictionary_items_by_internal_names(self, internal_names):
         if not internal_names:
             return ()

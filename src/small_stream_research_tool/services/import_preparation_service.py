@@ -22,6 +22,7 @@ from small_stream_research_tool.models.import_preparation_errors import (
     ValueNormalizationError,
 )
 from small_stream_research_tool.models.import_preview import ImportPreviewRow, PreviewStatus
+from small_stream_research_tool.models.source_unit import UnitConfirmationStatus
 from small_stream_research_tool.models.stream_code import CodeStatus, ComparisonStatus
 from small_stream_research_tool.services.dictionary_service import DictionaryService
 from small_stream_research_tool.services.stream_code_service import (
@@ -60,7 +61,11 @@ class ImportPreparationService:
         self._dictionary = dictionary_service
 
     def prepare_row(
-        self, row: ImportPreviewRow, *, field_policy: ImportFieldPolicy | None = None
+        self,
+        row: ImportPreviewRow,
+        *,
+        field_policy: ImportFieldPolicy | None = None,
+        unit_confirmations=None,
     ) -> PreparedImportRow:
         policy = ImportFieldPolicy() if field_policy is None else field_policy
         if type(policy) is not ImportFieldPolicy:
@@ -105,6 +110,11 @@ class ImportPreparationService:
             return stopped(PreparationStatus.BLOCKED)
 
         selected = []
+        confirmations = (
+            None
+            if unit_confirmations is None
+            else {item.source_column_index: item for item in unit_confirmations}
+        )
         for mapped in row.mapped_values:
             # 정책을 먼저 적용하여 제외 원본은 변환·original_value 생성 경로에 들어가지 않는다.
             if mapped.internal_name in policy.excluded_internal_names:
@@ -205,6 +215,32 @@ class ImportPreparationService:
                     else:
                         core_fields[name] = normalized
                 else:
+                    confirmation = (
+                        confirmations.get(mapped.source_column_index)
+                        if confirmations is not None
+                        else None
+                    )
+                    confirmed_unit = (
+                        confirmation is not None
+                        and confirmation.status == UnitConfirmationStatus.CONFIRMED
+                        and confirmation.selected_unit_id == item.unit_id
+                        and isinstance(confirmation.source_notation, str)
+                        and bool(confirmation.source_notation.strip())
+                    )
+                    confirmed_unitless = (
+                        confirmation is not None
+                        and confirmation.status == UnitConfirmationStatus.NOT_APPLICABLE
+                        and item.unit_id is None
+                        and confirmation.selected_unit_id is None
+                        and confirmation.source_notation is None
+                    )
+                    if confirmations is not None and (
+                        confirmation is None
+                        or confirmation.mapped_internal_name != item.internal_name
+                        or not (confirmed_unit or confirmed_unitless)
+                    ):
+                        issue("UNIT_CONFIRMATION_REQUIRED", "원본 단위를 확인해야 합니다.", mapped)
+                        continue
                     values.append(
                         PreparedCharacteristicValue(
                             item.dictionary_id,
@@ -213,7 +249,10 @@ class ImportPreparationService:
                             row.source_row,
                             **{TYPED_FIELDS[item.data_type]: normalized},
                             original_value=original_value_text(mapped.cell),
-                            unit_id=item.unit_id,
+                            original_unit=(confirmation.source_notation if confirmation else None),
+                            unit_id=(
+                                confirmation.selected_unit_id if confirmation else item.unit_id
+                            ),
                         )
                     )
             except ValueNormalizationError as error:

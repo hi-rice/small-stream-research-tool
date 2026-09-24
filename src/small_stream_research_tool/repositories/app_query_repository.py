@@ -48,6 +48,13 @@ class AppQueryRepository:
         )
         return rows[0] if rows else None
 
+    def current_research_version(self):
+        rows = self._rows(
+            "SELECT version,description FROM dictionary_version "
+            "WHERE is_current=1 AND version LIKE 'research-dictionary-%'"
+        )
+        return rows[0] if rows else None
+
     def dictionary_definitions(self, internal_names):
         if not internal_names:
             return ()

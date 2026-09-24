@@ -210,7 +210,8 @@ class StreamReadService:
 
             if not _code(stream_code, 11):
                 raise InvalidStreamReadRequest()
-            manifest = load_research_manifest()
+            version = self._repository.current_research_version() or "research-dictionary-v1"
+            manifest = load_research_manifest(version)
             with read_transaction(self._connection):
                 basic_row = self._repository.basic_stream(stream_code)
                 if basic_row is None:

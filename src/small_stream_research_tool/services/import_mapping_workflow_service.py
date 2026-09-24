@@ -14,10 +14,16 @@ from small_stream_research_tool.models.import_mapping_workflow import (
     MappingWorkflowState,
     PreviewRowSummary,
     PreviewSummary,
+    UnitOption,
 )
 from small_stream_research_tool.models.import_preparation import PreparationStatus
 from small_stream_research_tool.models.import_preview import PreviewStatus
 from small_stream_research_tool.models.import_workflow import ImportWorkflowState
+from small_stream_research_tool.models.source_unit import (
+    SourceUnitConfirmation,
+    UnitApplicability,
+    UnitConfirmationStatus,
+)
 from small_stream_research_tool.models.workspace import WorkspaceStep
 from small_stream_research_tool.models.workspace_errors import (
     WorkspaceSourceChangedError,
@@ -35,11 +41,28 @@ from small_stream_research_tool.services.import_preview_service import ImportPre
 from small_stream_research_tool.services.phase10_import_policy_service import (
     Phase10ImportPolicyService,
 )
+from small_stream_research_tool.services.research_dictionary_bootstrap import (
+    load_research_manifest,
+    manifest_fingerprint,
+)
+from small_stream_research_tool.services.research_unit_evidence_service import (
+    ResearchUnitEvidenceService,
+)
 from small_stream_research_tool.services.workspace_service import WorkspaceService
 from small_stream_research_tool.utils.file_hash import file_sha256
 
 NATIONAL_SCOPE = "NATIONAL_2024"
 PREVIEW_DISPLAY_LIMIT = 50
+_CORE_IDENTIFIERS = frozenset(
+    {
+        "stream_code",
+        "province_code",
+        "city_county_code",
+        "town_code",
+        "stream_serial_no",
+        "stream_name",
+    }
+)
 _SENSITIVE_HEADER = re.compile(
     r"service[ _-]?key|api[ _-]?key|password|passwd|secret|token|credential|"
     r"cctv|rtsp|(?:public|private)[ _-]?ip|(?:^|[ _-])ip(?:$|[ _-])|"
@@ -94,6 +117,24 @@ def _identity(mapping):
         mapping.source_header_parts,
         mapping.source_scope,
     )
+
+
+def _generation(source, mappings, research_fingerprint, evidence_fingerprint):
+    payload = repr(
+        (
+            source.file_hash,
+            source.selected_sheet,
+            source.header_start_row,
+            source.header_end_row,
+            source.data_start_row,
+            tuple(
+                (m.source_column_index, m.dictionary_id, m.mapping_status.value) for m in mappings
+            ),
+            research_fingerprint,
+            evidence_fingerprint,
+        )
+    )
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
 class ImportMappingWorkflowService:
@@ -164,10 +205,80 @@ class ImportMappingWorkflowService:
                     item.standard_name,
                     category.category_name,
                     unit.unit_symbol if unit else "—",
+                    item.internal_name,
+                    item.unit_id,
                 )
             )
         candidates.sort(key=lambda candidate: (candidate.category, candidate.label))
         return dictionary, policies, tuple(candidates)
+
+    @staticmethod
+    def _unit_policy(connection, source, mappings, candidates, prior=()):
+        repository = DictionaryRepository(connection)
+        current = repository.get_current_version()
+        options = tuple(
+            UnitOption(unit.unit_id, unit.unit_symbol)
+            for unit in repository.list_units(active_only=True)
+        )
+        if current is None or current.version != "research-dictionary-v2":
+            return (), options
+        research_fp = manifest_fingerprint(load_research_manifest(current.version))
+        evidence = ResearchUnitEvidenceService().load()
+        if evidence.research_fingerprint != research_fp:
+            raise MappingWorkflowError("연구 단위 근거와 현재 사전이 일치하지 않습니다.")
+        evidence_items = {item.internal_name: item for item in evidence.items}
+        targets = {candidate.dictionary_id: candidate for candidate in candidates}
+        generation = _generation(source, mappings, research_fp, evidence.fingerprint)
+        previous = {item.source_column_index: item for item in prior}
+        confirmations = []
+        for mapping in mappings:
+            candidate = targets.get(mapping.dictionary_id)
+            if (
+                candidate is None
+                or candidate.internal_name in _CORE_IDENTIFIERS
+                or mapping.mapping_status == MappingStatus.DO_NOT_MAP
+            ):
+                continue
+            evidence_item = evidence_items.get(candidate.internal_name)
+            applicability = (
+                evidence_item.applicability
+                if evidence_item is not None
+                else UnitApplicability.UNIT_DEFINED
+                if candidate.unit_id is not None
+                else UnitApplicability.UNRESOLVED
+            )
+            old = previous.get(mapping.source_column_index)
+            if applicability == UnitApplicability.UNITLESS:
+                confirmation = SourceUnitConfirmation(
+                    mapping.source_column_index,
+                    candidate.internal_name,
+                    applicability,
+                    status=UnitConfirmationStatus.NOT_APPLICABLE,
+                    mapping_generation=generation,
+                    research_fingerprint=research_fp,
+                    evidence_fingerprint=evidence.fingerprint,
+                )
+            elif (
+                old is not None
+                and old.mapping_generation == generation
+                and old.mapped_internal_name == candidate.internal_name
+                and old.expected_unit_id == candidate.unit_id
+                and old.research_fingerprint == research_fp
+                and old.evidence_fingerprint == evidence.fingerprint
+            ):
+                confirmation = old
+            else:
+                confirmation = SourceUnitConfirmation(
+                    mapping.source_column_index,
+                    candidate.internal_name,
+                    applicability,
+                    expected_unit_id=candidate.unit_id,
+                    mapping_generation=generation,
+                    research_fingerprint=research_fp,
+                    evidence_fingerprint=evidence.fingerprint,
+                )
+            confirmations.append(confirmation)
+        return tuple(confirmations), options
 
     @staticmethod
     def _columns(source):
@@ -182,12 +293,15 @@ class ImportMappingWorkflowService:
         return tuple(_safe_header(column) for column in raw)
 
     @staticmethod
-    def _rows(mappings, candidates):
+    def _rows(mappings, candidates, confirmations=(), units=()):
         targets = {item.dictionary_id: item for item in candidates}
+        confirmed = {item.source_column_index: item for item in confirmations}
+        symbols = {item.unit_id: item.symbol for item in units}
         result = []
         for mapping in mappings:
             candidate = targets.get(mapping.dictionary_id)
             sensitive = mapping.source_header.startswith("제외 대상 열 ")
+            confirmation = confirmed.get(mapping.source_column_index)
             result.append(
                 MappingRow(
                     mapping.source_column_index,
@@ -197,6 +311,15 @@ class ImportMappingWorkflowService:
                     candidate.label if candidate else "—",
                     (candidate.unit if candidate else "—"),
                     sensitive,
+                    symbols.get(confirmation.selected_unit_id, "—") if confirmation else "—",
+                    {
+                        UnitConfirmationStatus.UNCONFIRMED: "확인 필요",
+                        UnitConfirmationStatus.CONFIRMED: "확인됨",
+                        UnitConfirmationStatus.MISMATCH: "단위 불일치",
+                        UnitConfirmationStatus.NOT_APPLICABLE: "해당 없음",
+                    }.get(confirmation.status, "—")
+                    if confirmation
+                    else "—",
                 )
             )
         return tuple(result)
@@ -252,14 +375,23 @@ class ImportMappingWorkflowService:
                         else mapping
                         for mapping in mappings
                     )
+                confirmations, options = self._unit_policy(
+                    connection, source, mappings, candidates, draft.unit_confirmations
+                )
+                if confirmations != draft.unit_confirmations:
+                    draft = workspace.save_workspace(
+                        replace(draft, unit_confirmations=confirmations), user_id
+                    )
                 source = replace(source, workspace_saved_at=draft.saved_at)
                 return MappingWorkflowState(
                     source,
                     mappings,
                     candidates,
-                    self._rows(mappings, candidates),
+                    self._rows(mappings, candidates, confirmations, options),
                     draft.saved_at,
                     source_scope=draft.source_scope,
+                    unit_confirmations=confirmations,
+                    unit_options=options,
                 )
         except MappingWorkflowError:
             raise
@@ -314,12 +446,16 @@ class ImportMappingWorkflowService:
                         mappings.append(service.clear_mapping(fresh))
                     else:
                         mappings.append(fresh)
+                confirmations, options = self._unit_policy(
+                    connection, source, tuple(mappings), candidates
+                )
                 saved = workspace.save_workspace(
                     replace(
                         draft,
                         column_mappings=tuple(mappings),
                         current_step=WorkspaceStep.MAPPING,
                         source_scope=scope,
+                        unit_confirmations=confirmations,
                     ),
                     user_id,
                 )
@@ -328,9 +464,11 @@ class ImportMappingWorkflowService:
                     source,
                     tuple(mappings),
                     candidates,
-                    self._rows(mappings, candidates),
+                    self._rows(mappings, candidates, confirmations, options),
                     saved.saved_at,
                     source_scope=scope,
+                    unit_confirmations=confirmations,
+                    unit_options=options,
                 )
         except MappingWorkflowError:
             raise
@@ -391,11 +529,15 @@ class ImportMappingWorkflowService:
                     pass
                 else:
                     raise MappingWorkflowError("지원하지 않는 매핑 작업입니다.")
+                confirmations, options = self._unit_policy(
+                    connection, source, tuple(mappings), candidates
+                )
                 saved = workspace.save_workspace(
                     replace(
                         draft,
                         column_mappings=tuple(mappings),
                         current_step=WorkspaceStep.MAPPING,
+                        unit_confirmations=confirmations,
                     ),
                     user_id,
                 )
@@ -404,9 +546,11 @@ class ImportMappingWorkflowService:
                     source,
                     tuple(mappings),
                     candidates,
-                    self._rows(mappings, candidates),
+                    self._rows(mappings, candidates, confirmations, options),
                     saved.saved_at,
                     source_scope=state.source_scope,
+                    unit_confirmations=confirmations,
+                    unit_options=options,
                 )
         except MappingWorkflowError:
             raise
@@ -416,6 +560,84 @@ class ImportMappingWorkflowService:
             ) from None
         except Exception:
             raise MappingWorkflowError("매핑 변경을 저장하지 못했습니다.") from None
+
+    def confirm_unit(self, state, source_column_index, selected_unit_id, user_id):
+        if type(state) is not MappingWorkflowState or type(source_column_index) is not int:
+            raise MappingWorkflowError("단위를 확인할 원본 열을 선택해 주세요.")
+        try:
+            workspace = WorkspaceService(self._workspace_dir)
+            draft = workspace.load_workspace(user_id)
+            if draft is None or draft.saved_at != state.saved_at:
+                raise MappingWorkflowError("작업 상태가 변경되었습니다. 다시 열어 주세요.")
+            source = self._source(state.source, draft)
+            with closing(connect_database(self._db_path)) as connection:
+                _dictionary, _policies, candidates = self._dictionary(connection)
+                confirmations, options = self._unit_policy(
+                    connection, source, state.mappings, candidates, state.unit_confirmations
+                )
+                target = next(
+                    (
+                        item
+                        for item in confirmations
+                        if item.source_column_index == source_column_index
+                    ),
+                    None,
+                )
+                if target is None or target.applicability != UnitApplicability.UNIT_DEFINED:
+                    raise MappingWorkflowError("이 항목은 원본 단위를 선택할 수 없습니다.")
+                option = next((item for item in options if item.unit_id == selected_unit_id), None)
+                if option is None:
+                    raise MappingWorkflowError("활성 canonical 단위를 선택해 주세요.")
+                evidence = ResearchUnitEvidenceService().load()
+                evidence_item = next(
+                    (
+                        item
+                        for item in evidence.items
+                        if item.internal_name == target.mapped_internal_name
+                    ),
+                    None,
+                )
+                notation = (
+                    evidence_item.approved_source_notations[0]
+                    if evidence_item and evidence_item.approved_source_notations
+                    else option.symbol
+                )
+                updated = replace(
+                    target,
+                    selected_unit_id=selected_unit_id,
+                    source_notation=notation,
+                    status=(
+                        UnitConfirmationStatus.CONFIRMED
+                        if selected_unit_id == target.expected_unit_id
+                        else UnitConfirmationStatus.MISMATCH
+                    ),
+                )
+                confirmations = tuple(
+                    updated if item.source_column_index == source_column_index else item
+                    for item in confirmations
+                )
+                saved = workspace.save_workspace(
+                    replace(
+                        draft,
+                        unit_confirmations=confirmations,
+                        current_step=WorkspaceStep.MAPPING,
+                    ),
+                    user_id,
+                )
+                source = replace(source, workspace_saved_at=saved.saved_at)
+                return replace(
+                    state,
+                    source=source,
+                    rows=self._rows(state.mappings, candidates, confirmations, options),
+                    saved_at=saved.saved_at,
+                    preview=None,
+                    unit_confirmations=confirmations,
+                    unit_options=options,
+                )
+        except MappingWorkflowError:
+            raise
+        except Exception:
+            raise MappingWorkflowError("원본 단위 확인을 저장하지 못했습니다.") from None
 
     def preview(self, state, user_id):
         if type(state) is not MappingWorkflowState or state.saved_at is None:
@@ -434,6 +656,14 @@ class ImportMappingWorkflowService:
                 mappings = ColumnMappingService(dictionary).revalidate_mappings(state.mappings)
                 if mappings != state.mappings:
                     raise MappingWorkflowError("연구 사전 매핑을 다시 확인해 주세요.")
+                confirmations, options = self._unit_policy(
+                    connection, source, mappings, candidates, state.unit_confirmations
+                )
+                if (
+                    confirmations != state.unit_confirmations
+                    or confirmations != draft.unit_confirmations
+                ):
+                    raise MappingWorkflowError("현재 매핑의 원본 단위를 다시 확인해 주세요.")
                 preview_service = ImportPreviewService(
                     dictionary, StreamLookupRepository(connection)
                 )
@@ -451,7 +681,9 @@ class ImportMappingWorkflowService:
                         rows, mappings, field_policy=policies.preview
                     ):
                         prepared = preparation.prepare_row(
-                            preview_row, field_policy=policies.import_fields
+                            preview_row,
+                            field_policy=policies.import_fields,
+                            unit_confirmations=confirmations or None,
                         )
                         counts[prepared.status] += 1
                         if len(displayed) < PREVIEW_DISPLAY_LIMIT:
@@ -473,12 +705,22 @@ class ImportMappingWorkflowService:
                     raise MappingWorkflowError("Preview 중 원본 파일이 변경되었습니다.")
                 total = sum(counts.values())
                 unit_review = sum(
-                    candidate.unit != "—" and candidate.dictionary_id == mapping.dictionary_id
-                    for mapping in mappings
-                    for candidate in candidates
+                    item.applicability == UnitApplicability.UNIT_DEFINED
+                    and item.status == UnitConfirmationStatus.UNCONFIRMED
+                    for item in confirmations
+                )
+                unit_mismatch = sum(
+                    item.status == UnitConfirmationStatus.MISMATCH for item in confirmations
+                )
+                unit_unresolved = sum(
+                    item.applicability == UnitApplicability.UNRESOLVED for item in confirmations
                 )
                 ready = (
-                    counts[PreparationStatus.READY] > 0 and counts[PreparationStatus.BLOCKED] == 0
+                    counts[PreparationStatus.READY] > 0
+                    and counts[PreparationStatus.BLOCKED] == 0
+                    and unit_review == 0
+                    and unit_mismatch == 0
+                    and unit_unresolved == 0
                 )
                 saved = workspace.save_workspace(
                     replace(draft, current_step=WorkspaceStep.PREVIEW), user_id
@@ -496,7 +738,11 @@ class ImportMappingWorkflowService:
                         tuple(displayed),
                         ready,
                         unit_review,
+                        unit_mismatch,
+                        unit_unresolved,
                     ),
+                    unit_confirmations=confirmations,
+                    unit_options=options,
                 )
         except MappingWorkflowError:
             raise

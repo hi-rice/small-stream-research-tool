@@ -486,7 +486,7 @@ def test_workspace_stays_metadata_only(context, tmp_path):
     assert result.summary.ready_rows == 1
     assert saved_path.read_bytes() == saved and file_sha256(path) == original_hash
     data = json.loads(saved)
-    assert data["workspace_version"] == 1 and data["current_step"] == "PREVIEW"
+    assert data["workspace_version"] == 2 and data["current_step"] == "PREVIEW"
     assert not {"rows", "prepared_values", "original_value", "core_data"} & data.keys()
     assert "Synthetic Stream A" not in saved.decode()
 

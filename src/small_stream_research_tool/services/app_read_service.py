@@ -67,9 +67,11 @@ class AppReadService:
 
     def get_home_summary(self):
         try:
-            manifest = load_research_manifest()
-            digest = validate_research_manifest(manifest)
             with read_transaction(self._connection):
+                current = self._repository.current_research_version()
+                manifest_version = current[0] if current is not None else "research-dictionary-v1"
+                manifest = load_research_manifest(manifest_version)
+                digest = validate_research_manifest(manifest)
                 streams = self._repository.active_stream_count()
                 errors, review = self._repository.qc_stream_counts()
                 dictionary_state = self._dictionary_state(manifest, digest)

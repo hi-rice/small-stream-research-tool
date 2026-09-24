@@ -1,0 +1,1331 @@
+{
+  "manifest_version": "research-dictionary-v2",
+  "source_scope": "NATIONAL_2024",
+  "categories": [
+    {
+      "key": "basic_characteristic",
+      "name": "기본 특성",
+      "sort_order": 10
+    },
+    {
+      "key": "basin_stream_characteristic",
+      "name": "유역·하천 특성",
+      "sort_order": 20
+    },
+    {
+      "key": "soil_characteristic",
+      "name": "토양 특성",
+      "sort_order": 30
+    },
+    {
+      "key": "land_use",
+      "name": "토지이용",
+      "sort_order": 40
+    },
+    {
+      "key": "planning_design",
+      "name": "계획·설계 정보",
+      "sort_order": 50
+    }
+  ],
+  "units": [
+    {
+      "symbol": "km",
+      "name": "킬로미터"
+    },
+    {
+      "symbol": "km²",
+      "name": "제곱킬로미터"
+    },
+    {
+      "symbol": "m",
+      "name": "미터"
+    },
+    {
+      "symbol": "%",
+      "name": "퍼센트"
+    },
+    {
+      "symbol": "m³/s",
+      "name": "세제곱미터/초"
+    },
+    {
+      "symbol": "EL.m",
+      "name": "표고 EL.m"
+    },
+    {
+      "symbol": "hr",
+      "name": "시간"
+    },
+    {
+      "symbol": "mm",
+      "name": "밀리미터"
+    },
+    {
+      "symbol": "year",
+      "name": "년"
+    }
+  ],
+  "items": [
+    {
+      "research_concept": "소하천연장",
+      "standard_name": "소하천연장 - 전체",
+      "internal_name": "stream_length_total",
+      "category_key": "basic_characteristic",
+      "data_type": "REAL",
+      "unit_symbol": "km",
+      "analyzable": true,
+      "aliases": [
+        {
+          "name": "소하천연장 | 전체",
+          "source_scope": "NATIONAL_2024"
+        }
+      ],
+      "representative_six": true,
+      "focus_nine": true,
+      "display_approved": true
+    },
+    {
+      "research_concept": "소하천연장",
+      "standard_name": "소하천연장 - 미정비",
+      "internal_name": "stream_length_unimproved",
+      "category_key": "basic_characteristic",
+      "data_type": "REAL",
+      "unit_symbol": "km",
+      "analyzable": true,
+      "aliases": [
+        {
+          "name": "소하천연장 | 미정비",
+          "source_scope": "NATIONAL_2024"
+        }
+      ],
+      "representative_six": true,
+      "focus_nine": true,
+      "display_approved": true
+    },
+    {
+      "research_concept": "소하천연장",
+      "standard_name": "소하천연장 - 정비",
+      "internal_name": "stream_length_improved",
+      "category_key": "basic_characteristic",
+      "data_type": "REAL",
+      "unit_symbol": "km",
+      "analyzable": true,
+      "aliases": [
+        {
+          "name": "소하천연장 | 정비",
+          "source_scope": "NATIONAL_2024"
+        }
+      ],
+      "representative_six": true,
+      "focus_nine": true,
+      "display_approved": true
+    },
+    {
+      "research_concept": "유역면적",
+      "standard_name": "유역면적",
+      "internal_name": "basin_area",
+      "category_key": "basin_stream_characteristic",
+      "data_type": "REAL",
+      "unit_symbol": "km²",
+      "analyzable": true,
+      "aliases": [
+        {
+          "name": "유역면적",
+          "source_scope": "NATIONAL_2024"
+        }
+      ],
+      "representative_six": true,
+      "focus_nine": true,
+      "display_approved": true
+    },
+    {
+      "research_concept": "유로연장",
+      "standard_name": "유로연장",
+      "internal_name": "flow_path_length",
+      "category_key": "basin_stream_characteristic",
+      "data_type": "REAL",
+      "unit_symbol": "km",
+      "analyzable": true,
+      "aliases": [
+        {
+          "name": "유로연장",
+          "source_scope": "NATIONAL_2024"
+        }
+      ],
+      "representative_six": true,
+      "focus_nine": true,
+      "display_approved": true
+    },
+    {
+      "research_concept": "유역평균폭",
+      "standard_name": "유역평균폭",
+      "internal_name": "basin_average_width",
+      "category_key": "basin_stream_characteristic",
+      "data_type": "REAL",
+      "unit_symbol": "km",
+      "analyzable": true,
+      "aliases": [
+        {
+          "name": "유역평균폭",
+          "source_scope": "NATIONAL_2024"
+        }
+      ],
+      "representative_six": false,
+      "focus_nine": false,
+      "display_approved": true
+    },
+    {
+      "research_concept": "유역형상계수",
+      "standard_name": "유역형상계수",
+      "internal_name": "basin_shape_factor",
+      "category_key": "basin_stream_characteristic",
+      "data_type": "REAL",
+      "unit_symbol": null,
+      "analyzable": true,
+      "aliases": [
+        {
+          "name": "유역형상계수",
+          "source_scope": "NATIONAL_2024"
+        }
+      ],
+      "representative_six": false,
+      "focus_nine": false,
+      "display_approved": true
+    },
+    {
+      "research_concept": "평균표고",
+      "standard_name": "평균표고",
+      "internal_name": "mean_elevation",
+      "category_key": "basin_stream_characteristic",
+      "data_type": "REAL",
+      "unit_symbol": "m",
+      "analyzable": true,
+      "aliases": [
+        {
+          "name": "평균표고",
+          "source_scope": "NATIONAL_2024"
+        }
+      ],
+      "representative_six": false,
+      "focus_nine": false,
+      "display_approved": true
+    },
+    {
+      "research_concept": "유역평균경사",
+      "standard_name": "유역평균경사",
+      "internal_name": "basin_average_slope",
+      "category_key": "basin_stream_characteristic",
+      "data_type": "REAL",
+      "unit_symbol": "%",
+      "analyzable": true,
+      "aliases": [
+        {
+          "name": "유역평균경사",
+          "source_scope": "NATIONAL_2024"
+        }
+      ],
+      "representative_six": true,
+      "focus_nine": true,
+      "display_approved": true
+    },
+    {
+      "research_concept": "하상경사",
+      "standard_name": "하상경사",
+      "internal_name": "stream_bed_slope",
+      "category_key": "basin_stream_characteristic",
+      "data_type": "REAL",
+      "unit_symbol": null,
+      "analyzable": true,
+      "aliases": [
+        {
+          "name": "하상경사",
+          "source_scope": "NATIONAL_2024"
+        }
+      ],
+      "representative_six": true,
+      "focus_nine": true,
+      "display_approved": true
+    },
+    {
+      "research_concept": "하천밀도",
+      "standard_name": "하천밀도",
+      "internal_name": "stream_density",
+      "category_key": "basin_stream_characteristic",
+      "data_type": "REAL",
+      "unit_symbol": null,
+      "analyzable": true,
+      "aliases": [
+        {
+          "name": "하천밀도",
+          "source_scope": "NATIONAL_2024"
+        }
+      ],
+      "representative_six": false,
+      "focus_nine": false,
+      "display_approved": true
+    },
+    {
+      "research_concept": "하상계수",
+      "standard_name": "하상계수",
+      "internal_name": "stream_bed_coefficient",
+      "category_key": "basin_stream_characteristic",
+      "data_type": "REAL",
+      "unit_symbol": null,
+      "analyzable": true,
+      "aliases": [
+        {
+          "name": "하상계수",
+          "source_scope": "NATIONAL_2024"
+        }
+      ],
+      "representative_six": false,
+      "focus_nine": false,
+      "display_approved": true
+    },
+    {
+      "research_concept": "하천차수",
+      "standard_name": "하천차수",
+      "internal_name": "stream_order",
+      "category_key": "basin_stream_characteristic",
+      "data_type": "INTEGER",
+      "unit_symbol": null,
+      "analyzable": false,
+      "aliases": [
+        {
+          "name": "하천차수",
+          "source_scope": "NATIONAL_2024"
+        }
+      ],
+      "representative_six": false,
+      "focus_nine": false,
+      "display_approved": true
+    },
+    {
+      "research_concept": "하천분기율",
+      "standard_name": "하천분기율",
+      "internal_name": "stream_bifurcation_ratio",
+      "category_key": "basin_stream_characteristic",
+      "data_type": "REAL",
+      "unit_symbol": null,
+      "analyzable": true,
+      "aliases": [
+        {
+          "name": "하천분기율",
+          "source_scope": "NATIONAL_2024"
+        }
+      ],
+      "representative_six": false,
+      "focus_nine": false,
+      "display_approved": true
+    },
+    {
+      "research_concept": "하천길이비",
+      "standard_name": "하천길이비",
+      "internal_name": "stream_length_ratio",
+      "category_key": "basin_stream_characteristic",
+      "data_type": "REAL",
+      "unit_symbol": null,
+      "analyzable": true,
+      "aliases": [
+        {
+          "name": "하천길이비",
+          "source_scope": "NATIONAL_2024"
+        }
+      ],
+      "representative_six": false,
+      "focus_nine": false,
+      "display_approved": true
+    },
+    {
+      "research_concept": "사행길이",
+      "standard_name": "사행길이",
+      "internal_name": "meander_length",
+      "category_key": "basin_stream_characteristic",
+      "data_type": "REAL",
+      "unit_symbol": null,
+      "analyzable": true,
+      "aliases": [
+        {
+          "name": "사행길이",
+          "source_scope": "NATIONAL_2024"
+        }
+      ],
+      "representative_six": false,
+      "focus_nine": false,
+      "display_approved": true
+    },
+    {
+      "research_concept": "사행파장",
+      "standard_name": "사행파장",
+      "internal_name": "meander_wavelength",
+      "category_key": "basin_stream_characteristic",
+      "data_type": "REAL",
+      "unit_symbol": null,
+      "analyzable": true,
+      "aliases": [
+        {
+          "name": "사행파장",
+          "source_scope": "NATIONAL_2024"
+        }
+      ],
+      "representative_six": false,
+      "focus_nine": false,
+      "display_approved": true
+    },
+    {
+      "research_concept": "사행도",
+      "standard_name": "사행도",
+      "internal_name": "meander_index",
+      "category_key": "basin_stream_characteristic",
+      "data_type": "REAL",
+      "unit_symbol": null,
+      "analyzable": true,
+      "aliases": [
+        {
+          "name": "사행도",
+          "source_scope": "NATIONAL_2024"
+        }
+      ],
+      "representative_six": false,
+      "focus_nine": false,
+      "display_approved": true
+    },
+    {
+      "research_concept": "유출계수",
+      "standard_name": "유출계수",
+      "internal_name": "runoff_coefficient",
+      "category_key": "basin_stream_characteristic",
+      "data_type": "REAL",
+      "unit_symbol": null,
+      "analyzable": true,
+      "aliases": [
+        {
+          "name": "유출계수",
+          "source_scope": "NATIONAL_2024"
+        }
+      ],
+      "representative_six": false,
+      "focus_nine": false,
+      "display_approved": true
+    },
+    {
+      "research_concept": "도달시간",
+      "standard_name": "도달시간",
+      "internal_name": "arrival_time",
+      "category_key": "basin_stream_characteristic",
+      "data_type": "REAL",
+      "unit_symbol": "hr",
+      "analyzable": true,
+      "aliases": [
+        {
+          "name": "도달시간",
+          "source_scope": "NATIONAL_2024"
+        }
+      ],
+      "representative_six": false,
+      "focus_nine": false,
+      "display_approved": true
+    },
+    {
+      "research_concept": "저류상수",
+      "standard_name": "저류상수",
+      "internal_name": "storage_constant",
+      "category_key": "basin_stream_characteristic",
+      "data_type": "REAL",
+      "unit_symbol": "hr",
+      "analyzable": true,
+      "aliases": [
+        {
+          "name": "저류상수",
+          "source_scope": "NATIONAL_2024"
+        }
+      ],
+      "representative_six": false,
+      "focus_nine": false,
+      "display_approved": true
+    },
+    {
+      "research_concept": "지체시간",
+      "standard_name": "지체시간",
+      "internal_name": "lag_time",
+      "category_key": "basin_stream_characteristic",
+      "data_type": "REAL",
+      "unit_symbol": null,
+      "analyzable": true,
+      "aliases": [
+        {
+          "name": "지체시간",
+          "source_scope": "NATIONAL_2024"
+        }
+      ],
+      "representative_six": false,
+      "focus_nine": false,
+      "display_approved": true
+    },
+    {
+      "research_concept": "초기손실",
+      "standard_name": "초기손실",
+      "internal_name": "initial_loss",
+      "category_key": "basin_stream_characteristic",
+      "data_type": "REAL",
+      "unit_symbol": "mm",
+      "analyzable": true,
+      "aliases": [
+        {
+          "name": "초기손실",
+          "source_scope": "NATIONAL_2024"
+        }
+      ],
+      "representative_six": false,
+      "focus_nine": false,
+      "display_approved": true
+    },
+    {
+      "research_concept": "수문학적 토양군",
+      "standard_name": "수문학적 토양군 - A",
+      "internal_name": "soil_group_a_area",
+      "category_key": "soil_characteristic",
+      "data_type": "REAL",
+      "unit_symbol": "km²",
+      "analyzable": true,
+      "aliases": [
+        {
+          "name": "수문학적 토양군 | A",
+          "source_scope": "NATIONAL_2024"
+        }
+      ],
+      "representative_six": false,
+      "focus_nine": false,
+      "display_approved": true
+    },
+    {
+      "research_concept": "수문학적 토양군",
+      "standard_name": "수문학적 토양군 - B",
+      "internal_name": "soil_group_b_area",
+      "category_key": "soil_characteristic",
+      "data_type": "REAL",
+      "unit_symbol": "km²",
+      "analyzable": true,
+      "aliases": [
+        {
+          "name": "수문학적 토양군 | B",
+          "source_scope": "NATIONAL_2024"
+        }
+      ],
+      "representative_six": false,
+      "focus_nine": false,
+      "display_approved": true
+    },
+    {
+      "research_concept": "수문학적 토양군",
+      "standard_name": "수문학적 토양군 - C",
+      "internal_name": "soil_group_c_area",
+      "category_key": "soil_characteristic",
+      "data_type": "REAL",
+      "unit_symbol": "km²",
+      "analyzable": true,
+      "aliases": [
+        {
+          "name": "수문학적 토양군 | C",
+          "source_scope": "NATIONAL_2024"
+        }
+      ],
+      "representative_six": false,
+      "focus_nine": false,
+      "display_approved": true
+    },
+    {
+      "research_concept": "수문학적 토양군",
+      "standard_name": "수문학적 토양군 - D",
+      "internal_name": "soil_group_d_area",
+      "category_key": "soil_characteristic",
+      "data_type": "REAL",
+      "unit_symbol": "km²",
+      "analyzable": true,
+      "aliases": [
+        {
+          "name": "수문학적 토양군 | D",
+          "source_scope": "NATIONAL_2024"
+        }
+      ],
+      "representative_six": false,
+      "focus_nine": false,
+      "display_approved": true
+    },
+    {
+      "research_concept": "토지이용현황",
+      "standard_name": "토지이용현황 - 전",
+      "internal_name": "land_use_dry_field",
+      "category_key": "land_use",
+      "data_type": "REAL",
+      "unit_symbol": "km²",
+      "analyzable": true,
+      "aliases": [
+        {
+          "name": "토지이용현황 | 전",
+          "source_scope": "NATIONAL_2024"
+        }
+      ],
+      "representative_six": true,
+      "focus_nine": true,
+      "display_approved": true
+    },
+    {
+      "research_concept": "토지이용현황",
+      "standard_name": "토지이용현황 - 답",
+      "internal_name": "land_use_paddy_field",
+      "category_key": "land_use",
+      "data_type": "REAL",
+      "unit_symbol": "km²",
+      "analyzable": true,
+      "aliases": [
+        {
+          "name": "토지이용현황 | 답",
+          "source_scope": "NATIONAL_2024"
+        }
+      ],
+      "representative_six": true,
+      "focus_nine": true,
+      "display_approved": true
+    },
+    {
+      "research_concept": "토지이용현황",
+      "standard_name": "토지이용현황 - 전·답",
+      "internal_name": "land_use_dry_and_paddy_field",
+      "category_key": "land_use",
+      "data_type": "REAL",
+      "unit_symbol": "km²",
+      "analyzable": true,
+      "aliases": [
+        {
+          "name": "토지이용현황 | 전·답",
+          "source_scope": "NATIONAL_2024"
+        }
+      ],
+      "representative_six": true,
+      "focus_nine": true,
+      "display_approved": true
+    },
+    {
+      "research_concept": "토지이용현황",
+      "standard_name": "토지이용현황 - 농경지",
+      "internal_name": "land_use_farmland",
+      "category_key": "land_use",
+      "data_type": "REAL",
+      "unit_symbol": "km²",
+      "analyzable": true,
+      "aliases": [
+        {
+          "name": "토지이용현황 | 농경지",
+          "source_scope": "NATIONAL_2024"
+        }
+      ],
+      "representative_six": true,
+      "focus_nine": true,
+      "display_approved": true
+    },
+    {
+      "research_concept": "토지이용현황",
+      "standard_name": "토지이용현황 - 하우스재배지",
+      "internal_name": "land_use_greenhouse_cultivation",
+      "category_key": "land_use",
+      "data_type": "REAL",
+      "unit_symbol": "km²",
+      "analyzable": true,
+      "aliases": [
+        {
+          "name": "토지이용현황 | 하우스재배지",
+          "source_scope": "NATIONAL_2024"
+        }
+      ],
+      "representative_six": true,
+      "focus_nine": true,
+      "display_approved": true
+    },
+    {
+      "research_concept": "토지이용현황",
+      "standard_name": "토지이용현황 - 과수원",
+      "internal_name": "land_use_orchard",
+      "category_key": "land_use",
+      "data_type": "REAL",
+      "unit_symbol": "km²",
+      "analyzable": true,
+      "aliases": [
+        {
+          "name": "토지이용현황 | 과수원",
+          "source_scope": "NATIONAL_2024"
+        }
+      ],
+      "representative_six": true,
+      "focus_nine": true,
+      "display_approved": true
+    },
+    {
+      "research_concept": "토지이용현황",
+      "standard_name": "토지이용현황 - 기타재배지",
+      "internal_name": "land_use_other_cultivation",
+      "category_key": "land_use",
+      "data_type": "REAL",
+      "unit_symbol": "km²",
+      "analyzable": true,
+      "aliases": [
+        {
+          "name": "토지이용현황 | 기타재배지",
+          "source_scope": "NATIONAL_2024"
+        }
+      ],
+      "representative_six": true,
+      "focus_nine": true,
+      "display_approved": true
+    },
+    {
+      "research_concept": "토지이용현황",
+      "standard_name": "토지이용현황 - 초지",
+      "internal_name": "land_use_grassland",
+      "category_key": "land_use",
+      "data_type": "REAL",
+      "unit_symbol": "km²",
+      "analyzable": true,
+      "aliases": [
+        {
+          "name": "토지이용현황 | 초지",
+          "source_scope": "NATIONAL_2024"
+        }
+      ],
+      "representative_six": true,
+      "focus_nine": true,
+      "display_approved": true
+    },
+    {
+      "research_concept": "토지이용현황",
+      "standard_name": "토지이용현황 - 임야",
+      "internal_name": "land_use_forest_land",
+      "category_key": "land_use",
+      "data_type": "REAL",
+      "unit_symbol": "km²",
+      "analyzable": true,
+      "aliases": [
+        {
+          "name": "토지이용현황 | 임야",
+          "source_scope": "NATIONAL_2024"
+        }
+      ],
+      "representative_six": true,
+      "focus_nine": true,
+      "display_approved": true
+    },
+    {
+      "research_concept": "토지이용현황",
+      "standard_name": "토지이용현황 - 주거지역",
+      "internal_name": "land_use_residential_area",
+      "category_key": "land_use",
+      "data_type": "REAL",
+      "unit_symbol": "km²",
+      "analyzable": true,
+      "aliases": [
+        {
+          "name": "토지이용현황 | 주거지역",
+          "source_scope": "NATIONAL_2024"
+        }
+      ],
+      "representative_six": true,
+      "focus_nine": true,
+      "display_approved": true
+    },
+    {
+      "research_concept": "토지이용현황",
+      "standard_name": "토지이용현황 - 상업지역",
+      "internal_name": "land_use_commercial_area",
+      "category_key": "land_use",
+      "data_type": "REAL",
+      "unit_symbol": "km²",
+      "analyzable": true,
+      "aliases": [
+        {
+          "name": "토지이용현황 | 상업지역",
+          "source_scope": "NATIONAL_2024"
+        }
+      ],
+      "representative_six": true,
+      "focus_nine": true,
+      "display_approved": true
+    },
+    {
+      "research_concept": "토지이용현황",
+      "standard_name": "토지이용현황 - 공업지역",
+      "internal_name": "land_use_industrial_area",
+      "category_key": "land_use",
+      "data_type": "REAL",
+      "unit_symbol": "km²",
+      "analyzable": true,
+      "aliases": [
+        {
+          "name": "토지이용현황 | 공업지역",
+          "source_scope": "NATIONAL_2024"
+        }
+      ],
+      "representative_six": true,
+      "focus_nine": true,
+      "display_approved": true
+    },
+    {
+      "research_concept": "토지이용현황",
+      "standard_name": "토지이용현황 - 상공업지역",
+      "internal_name": "land_use_commercial_industrial_area",
+      "category_key": "land_use",
+      "data_type": "REAL",
+      "unit_symbol": "km²",
+      "analyzable": true,
+      "aliases": [
+        {
+          "name": "토지이용현황 | 상공업지역",
+          "source_scope": "NATIONAL_2024"
+        }
+      ],
+      "representative_six": true,
+      "focus_nine": true,
+      "display_approved": true
+    },
+    {
+      "research_concept": "토지이용현황",
+      "standard_name": "토지이용현황 - 교통지역",
+      "internal_name": "land_use_transport_area",
+      "category_key": "land_use",
+      "data_type": "REAL",
+      "unit_symbol": "km²",
+      "analyzable": true,
+      "aliases": [
+        {
+          "name": "토지이용현황 | 교통지역",
+          "source_scope": "NATIONAL_2024"
+        }
+      ],
+      "representative_six": true,
+      "focus_nine": true,
+      "display_approved": true
+    },
+    {
+      "research_concept": "토지이용현황",
+      "standard_name": "토지이용현황 - 기타지역",
+      "internal_name": "land_use_other_area",
+      "category_key": "land_use",
+      "data_type": "REAL",
+      "unit_symbol": "km²",
+      "analyzable": true,
+      "aliases": [
+        {
+          "name": "토지이용현황 | 기타지역",
+          "source_scope": "NATIONAL_2024"
+        }
+      ],
+      "representative_six": true,
+      "focus_nine": true,
+      "display_approved": true
+    },
+    {
+      "research_concept": "토지이용현황",
+      "standard_name": "토지이용현황 - 도시 및 주거시설",
+      "internal_name": "land_use_urban_residential_facilities",
+      "category_key": "land_use",
+      "data_type": "REAL",
+      "unit_symbol": "km²",
+      "analyzable": true,
+      "aliases": [
+        {
+          "name": "토지이용현황 | 도시 및 주거시설",
+          "source_scope": "NATIONAL_2024"
+        }
+      ],
+      "representative_six": true,
+      "focus_nine": true,
+      "display_approved": true
+    },
+    {
+      "research_concept": "토지이용현황",
+      "standard_name": "토지이용현황 - 나대지",
+      "internal_name": "land_use_bare_land",
+      "category_key": "land_use",
+      "data_type": "REAL",
+      "unit_symbol": "km²",
+      "analyzable": true,
+      "aliases": [
+        {
+          "name": "토지이용현황 | 나대지",
+          "source_scope": "NATIONAL_2024"
+        }
+      ],
+      "representative_six": true,
+      "focus_nine": true,
+      "display_approved": true
+    },
+    {
+      "research_concept": "토지이용현황",
+      "standard_name": "토지이용현황 - 초지/나지",
+      "internal_name": "land_use_grass_bare_land",
+      "category_key": "land_use",
+      "data_type": "REAL",
+      "unit_symbol": "km²",
+      "analyzable": true,
+      "aliases": [
+        {
+          "name": "토지이용현황 | 초지/나지",
+          "source_scope": "NATIONAL_2024"
+        }
+      ],
+      "representative_six": true,
+      "focus_nine": true,
+      "display_approved": true
+    },
+    {
+      "research_concept": "토지이용현황",
+      "standard_name": "토지이용현황 - 논/밭/초지/나지",
+      "internal_name": "land_use_paddy_dry_grass_bare_land",
+      "category_key": "land_use",
+      "data_type": "REAL",
+      "unit_symbol": "km²",
+      "analyzable": true,
+      "aliases": [
+        {
+          "name": "토지이용현황 | 논/밭/초지/나지",
+          "source_scope": "NATIONAL_2024"
+        }
+      ],
+      "representative_six": true,
+      "focus_nine": true,
+      "display_approved": true
+    },
+    {
+      "research_concept": "토지이용현황",
+      "standard_name": "토지이용현황 - 수계",
+      "internal_name": "land_use_water_area",
+      "category_key": "land_use",
+      "data_type": "REAL",
+      "unit_symbol": "km²",
+      "analyzable": true,
+      "aliases": [
+        {
+          "name": "토지이용현황 | 수계",
+          "source_scope": "NATIONAL_2024"
+        }
+      ],
+      "representative_six": true,
+      "focus_nine": true,
+      "display_approved": true
+    },
+    {
+      "research_concept": "토지이용현황",
+      "standard_name": "토지이용현황 - 공공용지",
+      "internal_name": "land_use_public_land",
+      "category_key": "land_use",
+      "data_type": "REAL",
+      "unit_symbol": "km²",
+      "analyzable": true,
+      "aliases": [
+        {
+          "name": "토지이용현황 | 공공용지",
+          "source_scope": "NATIONAL_2024"
+        }
+      ],
+      "representative_six": true,
+      "focus_nine": true,
+      "display_approved": true
+    },
+    {
+      "research_concept": "토지이용현황",
+      "standard_name": "토지이용현황 - 공원",
+      "internal_name": "land_use_park",
+      "category_key": "land_use",
+      "data_type": "REAL",
+      "unit_symbol": "km²",
+      "analyzable": true,
+      "aliases": [
+        {
+          "name": "토지이용현황 | 공원",
+          "source_scope": "NATIONAL_2024"
+        }
+      ],
+      "representative_six": true,
+      "focus_nine": true,
+      "display_approved": true
+    },
+    {
+      "research_concept": "토지이용현황",
+      "standard_name": "토지이용현황 - 광장",
+      "internal_name": "land_use_square",
+      "category_key": "land_use",
+      "data_type": "REAL",
+      "unit_symbol": "km²",
+      "analyzable": true,
+      "aliases": [
+        {
+          "name": "토지이용현황 | 광장",
+          "source_scope": "NATIONAL_2024"
+        }
+      ],
+      "representative_six": true,
+      "focus_nine": true,
+      "display_approved": true
+    },
+    {
+      "research_concept": "토지이용현황",
+      "standard_name": "토지이용현황 - 공공시설",
+      "internal_name": "land_use_public_facilities",
+      "category_key": "land_use",
+      "data_type": "REAL",
+      "unit_symbol": "km²",
+      "analyzable": true,
+      "aliases": [
+        {
+          "name": "토지이용현황 | 공공시설",
+          "source_scope": "NATIONAL_2024"
+        }
+      ],
+      "representative_six": true,
+      "focus_nine": true,
+      "display_approved": true
+    },
+    {
+      "research_concept": "토지이용현황",
+      "standard_name": "토지이용현황 - 위락시설지역",
+      "internal_name": "land_use_recreation_facilities_area",
+      "category_key": "land_use",
+      "data_type": "REAL",
+      "unit_symbol": "km²",
+      "analyzable": true,
+      "aliases": [
+        {
+          "name": "토지이용현황 | 위락시설지역",
+          "source_scope": "NATIONAL_2024"
+        }
+      ],
+      "representative_six": true,
+      "focus_nine": true,
+      "display_approved": true
+    },
+    {
+      "research_concept": "토지이용현황",
+      "standard_name": "토지이용현황 - 골프장",
+      "internal_name": "land_use_golf_course",
+      "category_key": "land_use",
+      "data_type": "REAL",
+      "unit_symbol": "km²",
+      "analyzable": true,
+      "aliases": [
+        {
+          "name": "토지이용현황 | 골프장",
+          "source_scope": "NATIONAL_2024"
+        }
+      ],
+      "representative_six": true,
+      "focus_nine": true,
+      "display_approved": true
+    },
+    {
+      "research_concept": "토지이용현황",
+      "standard_name": "토지이용현황 - 채광지역",
+      "internal_name": "land_use_mining_area",
+      "category_key": "land_use",
+      "data_type": "REAL",
+      "unit_symbol": "km²",
+      "analyzable": true,
+      "aliases": [
+        {
+          "name": "토지이용현황 | 채광지역",
+          "source_scope": "NATIONAL_2024"
+        }
+      ],
+      "representative_six": true,
+      "focus_nine": true,
+      "display_approved": true
+    },
+    {
+      "research_concept": "토지이용현황",
+      "standard_name": "토지이용현황 - 습지",
+      "internal_name": "land_use_wetland",
+      "category_key": "land_use",
+      "data_type": "REAL",
+      "unit_symbol": "km²",
+      "analyzable": true,
+      "aliases": [
+        {
+          "name": "토지이용현황 | 습지",
+          "source_scope": "NATIONAL_2024"
+        }
+      ],
+      "representative_six": true,
+      "focus_nine": true,
+      "display_approved": true
+    },
+    {
+      "research_concept": "토지이용현황",
+      "standard_name": "토지이용현황 - 개활지",
+      "internal_name": "land_use_open_land",
+      "category_key": "land_use",
+      "data_type": "REAL",
+      "unit_symbol": "km²",
+      "analyzable": true,
+      "aliases": [
+        {
+          "name": "토지이용현황 | 개활지",
+          "source_scope": "NATIONAL_2024"
+        }
+      ],
+      "representative_six": true,
+      "focus_nine": true,
+      "display_approved": true
+    },
+    {
+      "research_concept": "토지이용현황",
+      "standard_name": "토지이용현황 - 목장",
+      "internal_name": "land_use_ranch",
+      "category_key": "land_use",
+      "data_type": "REAL",
+      "unit_symbol": "km²",
+      "analyzable": true,
+      "aliases": [
+        {
+          "name": "토지이용현황 | 목장",
+          "source_scope": "NATIONAL_2024"
+        }
+      ],
+      "representative_six": true,
+      "focus_nine": true,
+      "display_approved": true
+    },
+    {
+      "research_concept": "토지이용현황",
+      "standard_name": "토지이용현황 - 기타시설",
+      "internal_name": "land_use_other_facilities",
+      "category_key": "land_use",
+      "data_type": "REAL",
+      "unit_symbol": "km²",
+      "analyzable": true,
+      "aliases": [
+        {
+          "name": "토지이용현황 | 기타시설",
+          "source_scope": "NATIONAL_2024"
+        }
+      ],
+      "representative_six": true,
+      "focus_nine": true,
+      "display_approved": true
+    },
+    {
+      "research_concept": "토지이용현황",
+      "standard_name": "토지이용현황 - 시가화 건조지역",
+      "internal_name": "land_use_urban_built_up_area",
+      "category_key": "land_use",
+      "data_type": "REAL",
+      "unit_symbol": "km²",
+      "analyzable": true,
+      "aliases": [
+        {
+          "name": "토지이용현황 | 시가화 건조지역",
+          "source_scope": "NATIONAL_2024"
+        }
+      ],
+      "representative_six": true,
+      "focus_nine": true,
+      "display_approved": true
+    },
+    {
+      "research_concept": "CN 값",
+      "standard_name": "CN 값 - AMC-Ⅰ",
+      "internal_name": "cn_amc_i",
+      "category_key": "basin_stream_characteristic",
+      "data_type": "REAL",
+      "unit_symbol": null,
+      "analyzable": true,
+      "aliases": [
+        {
+          "name": "CN 값 | AMC-Ⅰ",
+          "source_scope": "NATIONAL_2024"
+        }
+      ],
+      "representative_six": false,
+      "focus_nine": false,
+      "display_approved": true
+    },
+    {
+      "research_concept": "CN 값",
+      "standard_name": "CN 값 - AMC-Ⅱ",
+      "internal_name": "cn_amc_ii",
+      "category_key": "basin_stream_characteristic",
+      "data_type": "REAL",
+      "unit_symbol": null,
+      "analyzable": true,
+      "aliases": [
+        {
+          "name": "CN 값 | AMC-Ⅱ",
+          "source_scope": "NATIONAL_2024"
+        }
+      ],
+      "representative_six": false,
+      "focus_nine": false,
+      "display_approved": true
+    },
+    {
+      "research_concept": "CN 값",
+      "standard_name": "CN 값 - AMC-Ⅲ",
+      "internal_name": "cn_amc_iii",
+      "category_key": "basin_stream_characteristic",
+      "data_type": "REAL",
+      "unit_symbol": null,
+      "analyzable": true,
+      "aliases": [
+        {
+          "name": "CN 값 | AMC-Ⅲ",
+          "source_scope": "NATIONAL_2024"
+        }
+      ],
+      "representative_six": false,
+      "focus_nine": false,
+      "display_approved": true
+    },
+    {
+      "research_concept": "계획빈도",
+      "standard_name": "기점 계획빈도",
+      "internal_name": "source_plan_frequency",
+      "category_key": "planning_design",
+      "data_type": "INTEGER",
+      "unit_symbol": "year",
+      "analyzable": false,
+      "aliases": [
+        {
+          "name": "기점 | 계획 | 빈도",
+          "source_scope": "NATIONAL_2024"
+        }
+      ],
+      "representative_six": false,
+      "focus_nine": true,
+      "display_approved": true
+    },
+    {
+      "research_concept": "계획홍수량",
+      "standard_name": "기점 계획홍수량",
+      "internal_name": "source_plan_flood_discharge",
+      "category_key": "planning_design",
+      "data_type": "REAL",
+      "unit_symbol": "m³/s",
+      "analyzable": true,
+      "aliases": [
+        {
+          "name": "기점 | 계획 | 홍수량",
+          "source_scope": "NATIONAL_2024"
+        }
+      ],
+      "representative_six": false,
+      "focus_nine": true,
+      "display_approved": true
+    },
+    {
+      "research_concept": "계획홍수위",
+      "standard_name": "기점 계획홍수위",
+      "internal_name": "source_plan_flood_level",
+      "category_key": "planning_design",
+      "data_type": "REAL",
+      "unit_symbol": "EL.m",
+      "analyzable": true,
+      "aliases": [
+        {
+          "name": "기점 | 계획 | 홍수위",
+          "source_scope": "NATIONAL_2024"
+        }
+      ],
+      "representative_six": false,
+      "focus_nine": false,
+      "display_approved": true
+    },
+    {
+      "research_concept": "하폭",
+      "standard_name": "기점 하폭",
+      "internal_name": "source_design_channel_width",
+      "category_key": "planning_design",
+      "data_type": "REAL",
+      "unit_symbol": "m",
+      "analyzable": true,
+      "aliases": [
+        {
+          "name": "기점 | 계획 | 하폭",
+          "source_scope": "NATIONAL_2024"
+        }
+      ],
+      "representative_six": false,
+      "focus_nine": true,
+      "display_approved": true
+    },
+    {
+      "research_concept": "계획빈도",
+      "standard_name": "종점 계획빈도",
+      "internal_name": "end_plan_frequency",
+      "category_key": "planning_design",
+      "data_type": "INTEGER",
+      "unit_symbol": "year",
+      "analyzable": false,
+      "aliases": [
+        {
+          "name": "종점 | 계획 | 빈도",
+          "source_scope": "NATIONAL_2024"
+        }
+      ],
+      "representative_six": false,
+      "focus_nine": true,
+      "display_approved": true
+    },
+    {
+      "research_concept": "계획홍수량",
+      "standard_name": "종점 계획홍수량",
+      "internal_name": "end_plan_flood_discharge",
+      "category_key": "planning_design",
+      "data_type": "REAL",
+      "unit_symbol": "m³/s",
+      "analyzable": true,
+      "aliases": [
+        {
+          "name": "종점 | 계획 | 홍수량",
+          "source_scope": "NATIONAL_2024"
+        }
+      ],
+      "representative_six": false,
+      "focus_nine": true,
+      "display_approved": true
+    },
+    {
+      "research_concept": "계획홍수위",
+      "standard_name": "종점 계획홍수위",
+      "internal_name": "end_plan_flood_level",
+      "category_key": "planning_design",
+      "data_type": "REAL",
+      "unit_symbol": "EL.m",
+      "analyzable": true,
+      "aliases": [
+        {
+          "name": "종점 | 계획 | 홍수위",
+          "source_scope": "NATIONAL_2024"
+        }
+      ],
+      "representative_six": false,
+      "focus_nine": false,
+      "display_approved": true
+    },
+    {
+      "research_concept": "하폭",
+      "standard_name": "종점 하폭",
+      "internal_name": "end_design_channel_width",
+      "category_key": "planning_design",
+      "data_type": "REAL",
+      "unit_symbol": "m",
+      "analyzable": true,
+      "aliases": [
+        {
+          "name": "종점 | 계획 | 하폭",
+          "source_scope": "NATIONAL_2024"
+        }
+      ],
+      "representative_six": false,
+      "focus_nine": true,
+      "display_approved": true
+    }
+  ]
+}

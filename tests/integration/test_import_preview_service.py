@@ -450,7 +450,7 @@ def test_workspace_preview_step_and_rebuild(context, tmp_path):
     )
     for step in (WorkspaceStep.MAPPING, WorkspaceStep.CODE_VALIDATION, WorkspaceStep.PREVIEW):
         saved = workspace.save_workspace(replace(draft, current_step=step), 1)
-        assert workspace.load_workspace(1) == saved and saved.workspace_version == 1
+        assert workspace.load_workspace(1) == saved and saved.workspace_version == 2
     before = (tmp_path / "workspace" / "user_1.json").read_bytes()
     policy = PreviewFieldPolicy(frozenset({"test_hidden"}))
     result = context.service.rebuild_from_workspace(workspace, 1, field_policy=policy)

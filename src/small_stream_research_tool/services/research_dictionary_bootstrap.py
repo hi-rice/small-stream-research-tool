@@ -49,8 +49,14 @@ class BootstrapResult:
     alias_count: int
 
 
-def load_research_manifest():
-    path = files("small_stream_research_tool").joinpath("resources/research_dictionary_v1.json")
+def load_research_manifest(version="research-dictionary-v1"):
+    names = {
+        "research-dictionary-v1": "research_dictionary_v1.json",
+        "research-dictionary-v2": "research_dictionary_v2.json",
+    }
+    if version not in names:
+        raise ResearchDictionaryError()
+    path = files("small_stream_research_tool").joinpath("resources", names[version])
     try:
         return json.loads(path.read_text(encoding="utf-8"))
     except (OSError, UnicodeError, ValueError):
@@ -202,7 +208,14 @@ class ResearchDictionaryBootstrapService:
 
                 ImportCoreDictionaryBootstrapService(self._connection).bootstrap()
                 current = self._repo.get_current_version()
-                if current is None or current.version_id != version.version_id:
+                is_v1_request_on_v2 = (
+                    current is not None
+                    and current.version == "research-dictionary-v2"
+                    and manifest["manifest_version"] == "research-dictionary-v1"
+                )
+                if not is_v1_request_on_v2 and (
+                    current is None or current.version_id != version.version_id
+                ):
                     self._repo.set_current_version(version.version_id)
             return BootstrapResult(
                 manifest["manifest_version"],
@@ -216,6 +229,117 @@ class ResearchDictionaryBootstrapService:
             raise
         except Exception:
             raise ResearchDictionaryError() from None
+
+    def bootstrap_v2(self):
+        """Bootstrap V2 on a fresh database or upgrade an existing V1 database."""
+        current = self._repo.get_current_version()
+        if current is None:
+            return self.bootstrap(load_research_manifest("research-dictionary-v2"))
+        return self.upgrade_to_v2()
+
+    def upgrade_to_v2(self):
+        """Upgrade an unused V1 definition set to V2 in one transaction."""
+        v1 = load_research_manifest("research-dictionary-v1")
+        v2 = load_research_manifest("research-dictionary-v2")
+        validate_research_manifest(v1)
+        digest = validate_research_manifest(v2)
+        expected = {
+            "arrival_time": "hr",
+            "storage_constant": "hr",
+            "initial_loss": "mm",
+            "source_plan_frequency": "year",
+            "end_plan_frequency": "year",
+        }
+        left = {row["internal_name"]: row for row in v1["items"]}
+        right = {row["internal_name"]: row for row in v2["items"]}
+        if set(left) != set(right) or len(right) != 70:
+            raise ResearchDictionaryError()
+        for name, old in left.items():
+            changed = {**old, "unit_symbol": expected.get(name, old["unit_symbol"])}
+            if right[name] != changed:
+                raise ResearchDictionaryError()
+        stamp = utc_now_text()
+        try:
+            with self._repo.transaction():
+                current = self._repo.get_current_version()
+                if current is None or current.version != "research-dictionary-v1":
+                    if current is not None and current.version == "research-dictionary-v2":
+                        version = next(
+                            (
+                                version
+                                for version in self._repo.list_versions()
+                                if version.version == v2["manifest_version"]
+                            ),
+                            None,
+                        )
+                        if (
+                            version is None
+                            or version.description != "research-manifest-sha256:" + digest
+                        ):
+                            raise ResearchDictionaryError()
+                        self._verify_manifest(v2)
+                        return self._v2_result(v2, digest)
+                    raise ResearchDictionaryError()
+                units = self._units(v2["units"], stamp)
+                rows = {}
+                for name in expected:
+                    row = self._repo.get_item_by_internal_name(name)
+                    if row is None or self._repo.item_in_use(row.dictionary_id):
+                        raise ResearchDictionaryError()
+                    rows[name] = row
+                version = next(
+                    (v for v in self._repo.list_versions() if v.version == v2["manifest_version"]),
+                    None,
+                )
+                description = "research-manifest-sha256:" + digest
+                if version is None:
+                    version = self._repo.create_version(
+                        version=v2["manifest_version"], description=description, created_at=stamp
+                    )
+                elif version.description != description:
+                    raise ResearchDictionaryError()
+                for name, symbol in expected.items():
+                    self._repo.update_item_definition(
+                        rows[name].dictionary_id, {"unit_id": units[symbol].unit_id}, stamp
+                    )
+                self._verify_manifest(v2)
+                self._repo.set_current_version(version.version_id)
+            return self._v2_result(v2, digest)
+        except ResearchDictionaryError:
+            raise
+        except Exception:
+            raise ResearchDictionaryError() from None
+
+    @staticmethod
+    def _v2_result(manifest, digest):
+        return BootstrapResult(
+            manifest["manifest_version"],
+            digest,
+            len(manifest["categories"]),
+            len(manifest["units"]),
+            len(manifest["items"]),
+            sum(len(row["aliases"]) for row in manifest["items"]),
+        )
+
+    def _verify_manifest(self, manifest):
+        categories = {r.category_key: r for r in self._repo.list_categories(active_only=False)}
+        units = {r.unit_symbol: r for r in self._repo.list_units(active_only=False)}
+        for spec in manifest["items"]:
+            row = self._repo.get_item_by_internal_name(spec["internal_name"])
+            unit = units.get(spec["unit_symbol"]) if spec["unit_symbol"] else None
+            category = categories.get(spec["category_key"])
+            if (
+                row is None
+                or category is None
+                or not row.is_active
+                or row.deprecated_version_id is not None
+                or row.standard_name != spec["standard_name"]
+                or row.category_id != category.category_id
+                or row.data_type != spec["data_type"]
+                or row.unit_id != (unit.unit_id if unit else None)
+                or row.analyzable != spec["analyzable"]
+            ):
+                raise ResearchDictionaryError()
 
     def _categories(self, definitions, stamp):
         existing = {r.category_key: r for r in self._repo.list_categories(active_only=False)}
@@ -320,7 +444,14 @@ class ResearchDictionaryBootstrapService:
         return result, alias_count
 
     def approved_display_policy(self, manifest=None):
-        manifest = load_research_manifest() if manifest is None else manifest
+        if manifest is None:
+            current = self._repo.get_current_version()
+            version = (
+                current.version
+                if current and current.version.startswith("research-dictionary-v")
+                else "research-dictionary-v1"
+            )
+            manifest = load_research_manifest(version)
         digest = validate_research_manifest(manifest)
         version = next(
             (v for v in self._repo.list_versions() if v.version == manifest["manifest_version"]),

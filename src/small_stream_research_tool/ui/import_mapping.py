@@ -87,16 +87,24 @@ class ImportMappingView(QWidget):
         self.summary = QLabel("원본 열을 확인하는 중입니다.")
         self.summary.setObjectName("secondaryText")
         mapping_layout.addWidget(self.summary)
-        self.mapping_table = QTableWidget(0, 5)
+        self.mapping_table = QTableWidget(0, 7)
         self.mapping_table.setHorizontalHeaderLabels(
-            ("원본 열", "원본 헤더", "매핑 상태", "표준 항목", "기준 단위")
+            (
+                "원본 열",
+                "원본 헤더",
+                "매핑 상태",
+                "표준 항목",
+                "기준 단위",
+                "원본 단위",
+                "단위 상태",
+            )
         )
         self.mapping_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.mapping_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.mapping_table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.mapping_table.verticalHeader().hide()
         self.mapping_table.setMinimumHeight(250)
-        for index, width in enumerate((85, 260, 150, 220, 110)):
+        for index, width in enumerate((85, 260, 150, 220, 110, 110, 120)):
             self.mapping_table.horizontalHeader().setSectionResizeMode(
                 index, QHeaderView.ResizeMode.Interactive
             )
@@ -109,6 +117,17 @@ class ImportMappingView(QWidget):
         self.target.setMinimumWidth(260)
         target_line.addWidget(self.target, 1)
         actions.addLayout(target_line)
+        unit_line = QHBoxLayout()
+        self.source_unit = QComboBox()
+        self.source_unit.setMinimumWidth(180)
+        self.source_unit.addItem("원본 단위 선택", None)
+        self.source_unit.currentIndexChanged.connect(lambda: self._controls())
+        unit_line.addWidget(self.source_unit)
+        self.unit_button = QPushButton("원본 단위 확인")
+        self.unit_button.clicked.connect(self._confirm_unit)
+        unit_line.addWidget(self.unit_button)
+        unit_line.addStretch()
+        actions.addLayout(unit_line)
         button_line = QHBoxLayout()
         self.map_button = QPushButton("선택 항목 매핑")
         self.map_button.clicked.connect(lambda: self._change("map"))
@@ -216,6 +235,16 @@ class ImportMappingView(QWidget):
         if self.state is not None:
             self._submit("preview", (self.state, self.user_id), "전체 행을 검증하는 중입니다.")
 
+    def _confirm_unit(self):
+        if self.state is None or self.mapping_table.currentRow() < 0:
+            return
+        row = self.state.rows[self.mapping_table.currentRow()]
+        self._submit(
+            "confirm_unit",
+            (self.state, row.index, self.source_unit.currentData(), self.user_id),
+            "원본 단위를 확인하는 중입니다.",
+        )
+
     def _submit(self, operation, args, message):
         self._generation += 1
         token = self._generation
@@ -255,11 +284,23 @@ class ImportMappingView(QWidget):
                 f"{candidate.category} · {candidate.label} ({candidate.unit})",
                 candidate.dictionary_id,
             )
+        self.source_unit.clear()
+        self.source_unit.addItem("원본 단위 선택", None)
+        for option in state.unit_options:
+            self.source_unit.addItem(option.symbol, option.unit_id)
         self.mapping_table.blockSignals(True)
         self.mapping_table.setRowCount(len(state.rows))
         for row, entry in enumerate(state.rows):
             for column, value in enumerate(
-                (entry.letter, entry.header, entry.status, entry.target, entry.unit)
+                (
+                    entry.letter,
+                    entry.header,
+                    entry.status,
+                    entry.target,
+                    entry.unit,
+                    entry.source_unit,
+                    entry.unit_status,
+                )
             ):
                 self.mapping_table.setItem(row, column, QTableWidgetItem(value))
         self.mapping_table.clearSelection()
@@ -285,7 +326,9 @@ class ImportMappingView(QWidget):
             f"전체 {preview.total}행 검증 · 준비 가능 {preview.ready}행 · "
             f"차단 {preview.blocked}행 · 제외 {preview.excluded}행 · "
             f"화면에는 최대 {len(preview.displayed)}행만 표시 · {ready} · "
-            f"원본 단위 확인 필요 항목 {preview.unit_review_count}개"
+            f"원본 단위 확인 필요 {preview.unit_review_count}개 · "
+            f"단위 불일치 {preview.unit_mismatch_count}개 · "
+            f"단위 근거 미확정 {preview.unit_unresolved_count}개"
         )
         self.preview_table.setRowCount(len(preview.displayed))
         for row, item in enumerate(preview.displayed):
@@ -305,6 +348,14 @@ class ImportMappingView(QWidget):
         selected = self.state is not None and 0 <= row < len(self.state.rows)
         selectable = selected and not self.state.rows[row].sensitive
         self.target.setEnabled(bool(selectable and not busy))
+        unit_selectable = bool(
+            selectable
+            and self.state.rows[row].unit_status in ("확인 필요", "단위 불일치")
+            and self.source_unit.count() > 1
+            and not busy
+        )
+        self.source_unit.setEnabled(unit_selectable)
+        self.unit_button.setEnabled(unit_selectable and self.source_unit.currentData() is not None)
         self.map_button.setEnabled(bool(selectable and self.target.count() and not busy))
         self.exclude_button.setEnabled(bool(selectable and not busy))
         self.clear_button.setEnabled(bool(selectable and not busy))
