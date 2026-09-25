@@ -200,8 +200,9 @@ class ImportExecutionView(QWidget):
         elif operation == "execute" and isinstance(result, ImportExecutionOutcome):
             self.plan = None
             self.status.setText(result.message)
+            heading = "가져오기 완료 · " if result.status == "SUCCESS" else ""
             self.result.setText(
-                f"상태: {result.status} · 신규 {result.created_stream_count} · "
+                f"{heading}상태: {result.status} · 신규 {result.created_stream_count} · "
                 f"기존 {result.reused_stream_count} · 특성값 {result.characteristic_value_count}"
             )
             if result.status == "SUCCESS":

@@ -110,7 +110,7 @@ class ImportMappingView(QWidget):
                 index, QHeaderView.ResizeMode.Interactive
             )
             self.mapping_table.setColumnWidth(index, width)
-        self.mapping_table.itemSelectionChanged.connect(self._controls)
+        self.mapping_table.itemSelectionChanged.connect(self._mapping_selection_changed)
         mapping_layout.addWidget(self.mapping_table)
         actions = QVBoxLayout()
         target_line = QHBoxLayout()
@@ -343,6 +343,26 @@ class ImportMappingView(QWidget):
                 )
             ):
                 self.preview_table.setItem(row, column, QTableWidgetItem(value))
+
+    def _mapping_selection_changed(self):
+        row = self.mapping_table.currentRow()
+        unit_id = None
+        if self.state is not None and 0 <= row < len(self.state.rows):
+            selected = self.state.rows[row]
+            if selected.unit_status in ("확인 필요", "단위 불일치"):
+                unit_id = next(
+                    (
+                        option.unit_id
+                        for option in self.state.unit_options
+                        if option.symbol == selected.source_unit
+                    ),
+                    None,
+                )
+        self.source_unit.blockSignals(True)
+        index = self.source_unit.findData(unit_id) if unit_id is not None else 0
+        self.source_unit.setCurrentIndex(max(index, 0))
+        self.source_unit.blockSignals(False)
+        self._controls()
 
     def _controls(self, busy=False):
         row = self.mapping_table.currentRow()

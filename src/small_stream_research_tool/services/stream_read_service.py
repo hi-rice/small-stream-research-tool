@@ -326,10 +326,8 @@ class StreamReadService:
             classification = _source_classification(row[7])
             if classification == "IMPORT":
                 summary = "Import 자료"
-                if row[11]:
-                    summary += f" · 배치 {row[11]}"
-                if row[12] is not None:
-                    summary += f" · 원본 행 {row[12]}"
+                if row[11] is not None:
+                    summary += f" · 원본 행 {row[11]}"
             elif classification == "RESEARCHER_CORRECTION":
                 summary = (
                     "연구자 보정값 · 이전 값에서 생성"

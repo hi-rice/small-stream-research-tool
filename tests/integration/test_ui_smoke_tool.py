@@ -3,10 +3,25 @@
 import time
 import uuid
 from contextlib import closing
+from subprocess import run
 
 import pytest
+import tools.ui_smoke as ui_smoke
+from openpyxl import load_workbook
 from PySide6.QtWidgets import QApplication
-from tools.ui_smoke import ROOT, create_database, finalize_after_registration, smoke_path
+from tools.ui_smoke import (
+    PHASE10D_CHECKLIST,
+    PHASE10D_HEADERS,
+    PHASE10D_ROWS,
+    PHASE10D_SHEET,
+    ROOT,
+    create_database,
+    create_phase10d_smoke,
+    finalize_after_registration,
+    phase10d_workspace_path,
+    phase10d_xlsx_path,
+    smoke_path,
+)
 
 from small_stream_research_tool.app.controller import GuiSession
 from small_stream_research_tool.config.settings import get_app_paths
@@ -25,6 +40,18 @@ def smoke_database():
         yield create_database(path)
     finally:
         path.unlink(missing_ok=True)
+
+
+@pytest.fixture
+def phase10d_artifacts():
+    token = uuid.uuid4().hex
+    db = ROOT / "build" / f"phase10d_ui_smoke_{token}.db"
+    xlsx = ROOT / "build" / f"phase10d_ui_smoke_{token}.xlsx"
+    try:
+        yield create_phase10d_smoke(db, xlsx)
+    finally:
+        db.unlink(missing_ok=True)
+        xlsx.unlink(missing_ok=True)
 
 
 @pytest.fixture(scope="session")
@@ -50,6 +77,119 @@ def test_path_guard_refuses_default_outside_and_overwrite(smoke_database):
         smoke_path(ROOT / "ui_smoke.db")
     with pytest.raises(FileExistsError):
         create_database(smoke_database)
+
+
+def test_phase10d_path_guards_refuse_outside_and_overwrite(phase10d_artifacts, tmp_path):
+    db, xlsx = phase10d_artifacts
+    with pytest.raises(ValueError):
+        phase10d_xlsx_path(tmp_path / "phase10d_ui_smoke.xlsx")
+    with pytest.raises(ValueError):
+        create_phase10d_smoke(tmp_path / "phase10d_ui_smoke.db", xlsx)
+    with pytest.raises(FileExistsError):
+        create_phase10d_smoke(db, ROOT / "build" / "phase10d_ui_smoke_new.xlsx")
+    with pytest.raises(FileExistsError):
+        create_phase10d_smoke(
+            ROOT / "build" / "phase10d_ui_smoke_new.db",
+            xlsx,
+        )
+
+
+def test_phase10d_artifacts_use_official_v2_core_and_synthetic_workbook(phase10d_artifacts):
+    db, xlsx = phase10d_artifacts
+    with closing(connect_database(db)) as connection:
+        assert connection.execute(
+            "SELECT version FROM dictionary_version WHERE is_current=1"
+        ).fetchone() == ("research-dictionary-v2",)
+        assert connection.execute("SELECT count(*) FROM data_dictionary").fetchone() == (76,)
+        assert connection.execute("SELECT count(*) FROM app_user").fetchone() == (0,)
+        assert connection.execute("SELECT count(*) FROM import_history").fetchone() == (0,)
+        assert connection.execute("SELECT count(*) FROM characteristic_value").fetchone() == (0,)
+        assert connection.execute("SELECT count(*) FROM data_quality_issue").fetchone() == (0,)
+        assert connection.execute("SELECT count(*) FROM stream_characteristic").fetchone() == (0,)
+        assert connection.execute(
+            "SELECT stream_code,stream_name FROM small_stream"
+        ).fetchall() == [("09876543001", "PHASE10D 합성 기존천")]
+        aliases = {
+            row[0]
+            for row in connection.execute(
+                "SELECT alias_name FROM column_alias WHERE source_scope='NATIONAL_2024'"
+            )
+        }
+        assert set(PHASE10D_HEADERS[:-1]) <= aliases
+        assert sum(header in aliases for header in PHASE10D_HEADERS) == 9
+        assert tuple(header for header in PHASE10D_HEADERS if header not in aliases) == (
+            "검토메모",
+        )
+
+    book = load_workbook(xlsx, read_only=True, data_only=True)
+    try:
+        sheet = book[PHASE10D_SHEET]
+        assert sheet.max_row == len(PHASE10D_ROWS) + 1
+        assert tuple(cell.value for cell in sheet[1]) == PHASE10D_HEADERS
+        rows = tuple(sheet.iter_rows(min_row=2, values_only=True))
+        assert rows == PHASE10D_ROWS
+        assert all(row[0].startswith("0") and len(row[0]) == 11 for row in rows)
+        assert all("PHASE10D 합성" in row[5] for row in rows)
+    finally:
+        book.close()
+
+    workspace = phase10d_workspace_path(db)
+    assert not workspace.exists()
+    assert not workspace.resolve().is_relative_to(ROOT.resolve())
+    for artifact in (db, xlsx):
+        result = run(
+            ["git", "check-ignore", "--quiet", str(artifact.relative_to(ROOT))],
+            cwd=ROOT,
+            check=False,
+        )
+        assert result.returncode == 0
+
+
+def test_phase10d_checklist_requires_scope_before_mapping_review():
+    instructions = "\n".join(PHASE10D_CHECKLIST)
+    assert "2024 전국 연구자료" in instructions
+    assert "자료 범위 적용" in instructions
+    assert "자동 매핑 9개" in instructions
+    assert "검토메모" in instructions
+    assert "전체 4행" in instructions
+
+
+def test_phase10d_run_uses_isolated_workspace_without_legacy_finalizer(
+    phase10d_artifacts, monkeypatch
+):
+    db, _xlsx = phase10d_artifacts
+    captured = {}
+
+    class Auth:
+        @staticmethod
+        def needs_initial_user_setup():
+            return False
+
+    class Controller:
+        def __init__(self, db_path, workspace_dir):
+            captured["db"] = db_path
+            captured["workspace"] = workspace_dir
+            self.auth_service = Auth()
+
+        def start(self):
+            captured["started"] = True
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(ui_smoke, "ApplicationController", Controller)
+    monkeypatch.setattr(
+        ui_smoke,
+        "finalize_after_registration",
+        lambda _path: pytest.fail("Phase 9C finalizer must not run for Phase 10D"),
+    )
+    monkeypatch.setattr(QApplication, "exec", lambda self: 0)
+    assert ui_smoke.run_gui(db) == 0
+    assert captured == {
+        "db": db,
+        "workspace": phase10d_workspace_path(db),
+        "started": True,
+    }
 
 
 def test_created_database_is_synthetic_unregistered_and_bootstrapped(smoke_database):

@@ -230,9 +230,8 @@ class StreamQueryRepository:
         return self._rows(
             "SELECT v.characteristic_value_id,v.dictionary_id,v.value_number,v.value_integer,"
             "v.value_text,v.value_date,u.unit_symbol,v.source_type,v.is_active,"
-            "v.is_representative,v.created_at,h.batch_code,v.source_row "
+            "v.is_representative,v.created_at,v.source_row "
             "FROM characteristic_value v LEFT JOIN unit_dictionary u ON u.unit_id=v.unit_id "
-            "LEFT JOIN import_history h ON h.import_id=v.import_id "
             "WHERE v.stream_code=? AND v.dictionary_id IN (" + _marks(dictionary_ids) + ") "
             "ORDER BY v.dictionary_id,v.created_at DESC,v.characteristic_value_id DESC",
             (stream_code, *dictionary_ids),

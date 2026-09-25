@@ -213,7 +213,8 @@ def test_current_qc_provenance_history_and_sensitive_boundaries(database):
     assert any(value.is_current_use and value.value == 2.5 for value in row.value_history)
     imported = next(value for value in row.value_history if value.value == 1.0)
     corrected = next(value for value in row.value_history if value.value == 2.5)
-    assert imported.provenance_summary == "Import 자료 · 배치 SYNTHETIC-BATCH · 원본 행 7"
+    assert imported.provenance_summary == "Import 자료 · 원본 행 7"
+    assert "SYNTHETIC-BATCH" not in imported.provenance_summary
     assert corrected.provenance_summary == "연구자 보정값 · 이전 값에서 생성"
     shown = repr(detail)
     assert "RAW_NOT_FOR_DISPLAY" not in shown and "PRIVATE_RAW" not in shown

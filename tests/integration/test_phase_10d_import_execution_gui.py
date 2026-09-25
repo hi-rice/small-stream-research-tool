@@ -316,6 +316,9 @@ def test_synthetic_gui_flow_reaches_success_and_import_history(tmp_path, monkeyp
         mapping.source_unit.setCurrentIndex(mapping.source_unit.findText("km²"))
         mapping.unit_button.click()
         _wait(app, lambda: mapping.state.rows[basin_index].unit_status == "확인됨")
+        mapping.mapping_table.selectRow(unknown_index)
+        assert mapping.source_unit.currentData() is None
+        assert not mapping.source_unit.isEnabled()
         mapping.preview_button.click()
         _wait(app, lambda: mapping.next_button.isEnabled())
         mapping.next_button.click()
@@ -323,6 +326,7 @@ def test_synthetic_gui_flow_reaches_success_and_import_history(tmp_path, monkeyp
         _wait(app, lambda: execution.plan is not None)
         execution.execute_button.click()
         _wait(app, lambda: not execution.mutation_active and "완료" in execution.status.text())
+        assert execution.result.text().startswith("가져오기 완료")
         assert "SUCCESS" in execution.result.text()
         window.navigate("Import 이력")
         history = window.import_history

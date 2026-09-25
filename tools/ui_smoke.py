@@ -1,9 +1,13 @@
-"""격리된 합성 Phase 9C UI smoke DB를 생성하고 그 DB로 GUI를 실행한다."""
+"""격리된 합성 UI smoke DB/XLSX를 생성하고 그 DB로 GUI를 실행한다."""
 
 import argparse
+import hashlib
 import sys
+import tempfile
 from contextlib import closing
 from pathlib import Path
+
+from openpyxl import Workbook
 
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "src"
@@ -61,6 +65,76 @@ FOCUS_NAMES = (
     "end_plan_flood_discharge",
     "end_design_channel_width",
 )
+PHASE10D_SHEET = "SmokeImport"
+PHASE10D_HEADERS = (
+    "관리코드",
+    "시도코드",
+    "시군구코드",
+    "읍면동코드",
+    "일련번호",
+    "소하천명",
+    "유역면적",
+    "초기손실",
+    "하상경사",
+    "검토메모",
+)
+PHASE10D_CHECKLIST = (
+    "자료 범위에서 '2024 전국 연구자료'를 선택하고 '자료 범위 적용'을 누릅니다.",
+    "자동 매핑 9개와 미매핑 '검토메모' 1개를 확인합니다.",
+    "유역면적·초기손실·하상경사의 원본 단위를 확인합니다.",
+    "Preview에서 전체 4행, 신규 3행, 기존 1행을 확인한 뒤 Import를 실행합니다.",
+    "완료 상태, Import 이력, 소하천 상세와 값 이력을 확인합니다.",
+)
+PHASE10D_ROWS = (
+    (
+        "09876543001",
+        "09",
+        "876",
+        "543",
+        "001",
+        "PHASE10D 합성 기존천",
+        1.25,
+        12.5,
+        0.012,
+        "가져오지 않음 지정",
+    ),
+    (
+        "09876543002",
+        "09",
+        "876",
+        "543",
+        "002",
+        "PHASE10D 합성 신규천A",
+        2.5,
+        15.0,
+        0.018,
+        "가져오지 않음 지정",
+    ),
+    (
+        "09876543003",
+        "09",
+        "876",
+        "543",
+        "003",
+        "PHASE10D 합성 신규천B",
+        3.75,
+        17.5,
+        0.024,
+        "가져오지 않음 지정",
+    ),
+    (
+        "09876543004",
+        "09",
+        "876",
+        "543",
+        "004",
+        "PHASE10D 합성 신규천C",
+        5.0,
+        20.0,
+        0.03,
+        "가져오지 않음 지정",
+    ),
+)
 
 
 def smoke_path(raw):
@@ -72,6 +146,27 @@ def smoke_path(raw):
     if path == default:
         raise ValueError("기본 local DB 경로는 smoke DB로 사용할 수 없습니다.")
     return path
+
+
+def phase10d_xlsx_path(raw):
+    path = Path(raw).expanduser().resolve()
+    build = (ROOT / "build").resolve()
+    if (
+        path.parent != build
+        or "phase10d_ui_smoke" not in path.stem.lower()
+        or path.suffix.lower() != ".xlsx"
+    ):
+        raise ValueError(
+            "Phase 10D smoke XLSX는 repository build 폴더의 "
+            "*phase10d_ui_smoke*.xlsx 경로여야 합니다."
+        )
+    return path
+
+
+def phase10d_workspace_path(db_path):
+    db_path = smoke_path(db_path)
+    token = hashlib.sha256(str(db_path).encode("utf-8")).hexdigest()[:16]
+    return Path(tempfile.gettempdir()) / "ndmi-phase10d-ui-smoke" / token
 
 
 def _stream(repo, code, name, note, index):
@@ -254,6 +349,50 @@ def create_database(path):
         raise
 
 
+def create_phase10d_smoke(db_path, xlsx_path):
+    db_path = smoke_path(db_path)
+    xlsx_path = phase10d_xlsx_path(xlsx_path)
+    workspace = phase10d_workspace_path(db_path)
+    if db_path.exists():
+        raise FileExistsError("기존 DB를 덮어쓰지 않습니다. 새 smoke DB 파일명을 사용하세요.")
+    if xlsx_path.exists():
+        raise FileExistsError("기존 XLSX를 덮어쓰지 않습니다. 새 smoke XLSX 파일명을 사용하세요.")
+    if workspace.exists():
+        raise FileExistsError("기존 Phase 10D smoke workspace가 있습니다.")
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    initialize_database(db_path)
+    try:
+        with closing(connect_database(db_path)) as connection:
+            ResearchDictionaryBootstrapService(connection).bootstrap_v2()
+            with transaction(connection):
+                SmallStreamRepository(connection).create(
+                    stream_code="09876543001",
+                    province_code="09",
+                    city_county_code="876",
+                    town_code="543",
+                    stream_serial_no="001",
+                    stream_name="PHASE10D 합성 기존천",
+                    province_name="합성도",
+                    city_county_name="합성군",
+                    town_name="합성면",
+                    created_at=STAMP,
+                    updated_at=STAMP,
+                )
+        book = Workbook()
+        sheet = book.active
+        sheet.title = PHASE10D_SHEET
+        sheet.append(PHASE10D_HEADERS)
+        for row in PHASE10D_ROWS:
+            sheet.append(row)
+        book.save(xlsx_path)
+        book.close()
+        return db_path, xlsx_path
+    except BaseException:
+        db_path.unlink(missing_ok=True)
+        xlsx_path.unlink(missing_ok=True)
+        raise
+
+
 def finalize_after_registration(path):
     path = smoke_path(path)
     with closing(connect_database(path)) as connection:
@@ -342,11 +481,13 @@ def run_gui(path):
     app = QApplication.instance() or QApplication([])
     app.setApplicationName("소하천 데이터 관리 · UI Smoke")
     app.setStyleSheet(STYLESHEET)
-    controller = ApplicationController(path)
-    if not controller.auth_service.needs_initial_user_setup():
+    is_phase10d = "phase10d" in path.stem.lower()
+    workspace_dir = phase10d_workspace_path(path) if is_phase10d else None
+    controller = ApplicationController(path, workspace_dir)
+    if not is_phase10d and not controller.auth_service.needs_initial_user_setup():
         finalize_after_registration(path)
     controller.start()
-    if controller.login_window.initial_setup:
+    if not is_phase10d and controller.login_window.initial_setup:
         controller.login_window.registered.connect(lambda: finalize_after_registration(path))
     app.aboutToQuit.connect(controller.close)
     return app.exec()
@@ -358,10 +499,21 @@ def main(argv=None):
     for name in ("create", "run"):
         command = subparsers.add_parser(name)
         command.add_argument("--db", required=True)
+    phase10d = subparsers.add_parser("create-phase10d")
+    phase10d.add_argument("--db", required=True)
+    phase10d.add_argument("--xlsx", required=True)
     args = parser.parse_args(argv)
     try:
         if args.command == "create":
             print(create_database(args.db))
+            return 0
+        if args.command == "create-phase10d":
+            db, xlsx = create_phase10d_smoke(args.db, args.xlsx)
+            print(db)
+            print(xlsx)
+            print("Phase 10D interactive smoke 순서:")
+            for index, step in enumerate(PHASE10D_CHECKLIST, start=1):
+                print(f"{index}. {step}")
             return 0
         return run_gui(args.db)
     except Exception as error:
